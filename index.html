@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Minha Horta</title>
+  <meta name="description" content="Monitoramento de hortaliças e mudas: plantios, diário, clima, sensores e assistente.">
+  <meta name="theme-color" content="#f2f6fc">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Minha Horta">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/"><span class="brand-logo" data-ic="Plantios"></span><span class="brand-name">Minha Horta</span></a>
+    <nav class="topnav" aria-label="Menu">
+      <a href="#/" data-tab="inicio"><span data-ic="Início"></span>Início</a>
+      <a href="#/plantios" data-tab="plantios"><span data-ic="Plantios"></span>Plantios</a>
+      <a href="#/dados" data-tab="dados"><span data-ic="Dados"></span>Dados</a>
+      <a href="#/assistente" data-tab="assistente"><span data-ic="Assistente"></span>Assistente</a>
+    </nav>
+    <div class="top-actions">
+      <a href="#/novo" class="btn primary top-novo"><span data-ic="Adicionar"></span>Novo plantio</a>
+      <span id="net" class="net" title="Status da conexão"></span>
+      <a href="#/clima" class="icon-btn" aria-label="Clima" title="Clima"><span data-ic="Sol"></span></a>
+      <a href="#/mais" class="icon-btn" aria-label="Mais opções" title="Sensores, backup, aparência"><span data-ic="Ajustes"></span></a>
+    </div>
+  </header>
+
+  <main id="view" class="view" aria-live="polite"></main>
+
+  <nav class="tabbar" aria-label="Navegação principal">
+    <a href="#/" data-tab="inicio"><span data-ic="Início"></span><span>Início</span></a>
+    <a href="#/plantios" data-tab="plantios"><span data-ic="Plantios"></span><span>Plantios</span></a>
+    <a href="#/novo" data-tab="novo" class="tab-add" aria-label="Novo plantio"><span data-ic="Adicionar"></span></a>
+    <a href="#/dados" data-tab="dados"><span data-ic="Dados"></span><span>Dados</span></a>
+    <a href="#/assistente" data-tab="assistente"><span data-ic="Assistente"></span><span>Assistente</span></a>
+  </nav>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="modal" class="modal" hidden></div>
+
+  <script>try{document.documentElement.dataset.tema=(JSON.parse(localStorage.getItem('horta-config')||'{}').temaBase)||'clean'}catch(e){}</script>
+  <script src="icons.js"></script>
+  <script src="catalog.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

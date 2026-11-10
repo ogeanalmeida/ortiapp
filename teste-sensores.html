@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sensores · Minha Horta</title>
+<meta name="theme-color" content="#f2f6fc">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=1.6.2">
+<script>try{document.documentElement.dataset.tema=(JSON.parse(localStorage.getItem('horta-config')||'{}').temaBase)||'clean'}catch(e){}</script>
+<style>
+/* Bancada de sensores: usa os tokens e componentes do app (styles.css) */
+.sens-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.sens-hero .hero-ico { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: rgba(255,255,255,.2); }
+.sens-hero .hero-ico .i { width: 28px; height: 28px; }
+.st-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.55); display: inline-block; }
+.st-chip .dot.on { background: #8ff0ae; box-shadow: 0 0 0 0 rgba(143,240,174,.6); animation: pulsa 1.6s infinite; }
+@keyframes pulsa { 70% { box-shadow: 0 0 0 7px rgba(143,240,174,0); } 100% { box-shadow: 0 0 0 0 rgba(143,240,174,0); } }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.ctl .row { gap: 8px; }
+.ctl label { display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; color: var(--muted); }
+.ctl select { width: auto; padding: 8px 10px; }
+.sens-grid { display: grid; gap: 14px; margin-top: 14px; }
+.sens-grid > * { margin: 0 !important; min-width: 0; }
+.niveis.dois { grid-template-columns: 1fr 1fr; }
+.nivel .n-val { transition: color .3s; }
+.nivel .n-bar i { transition: width .5s cubic-bezier(.2,.8,.2,1), background .3s; }
+.nivel .chip { margin-top: 8px; }
+.nivel .n-bruto { font-size: .75rem; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.mini-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.mini-tiles div { background: var(--neutral); border-radius: 12px; padding: 8px 6px; text-align: center; }
+.mini-tiles b { display: block; font-weight: 500; font-variant-numeric: tabular-nums; }
+.mini-tiles span { font-size: .7rem; color: var(--muted); }
+.tiles.quatro { grid-template-columns: repeat(2, 1fr); margin-top: 12px; }
+.tiles.quatro .tile b { font-size: 1.4rem; }
+#vHoras { font-size: 1rem; line-height: 1.75; white-space: nowrap; }
+.sec-title { display: flex; align-items: center; gap: 8px; margin: 0; }
+.sec-title .i { width: 20px; height: 20px; color: var(--primary); }
+.head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+#grafico { width: 100%; height: 220px; display: block; margin-top: 10px; }
+.legend { display: flex; gap: 14px; font-size: .8rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.stats-line { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .8rem; color: var(--muted); margin-top: 6px; }
+.stats-line b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.barra-meta { height: 10px; border-radius: 99px; background: var(--neutral); overflow: hidden; margin-top: 8px; }
+.barra-meta i { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--accent); transition: width .5s; }
+.calib { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.calib .box { border: 1px dashed var(--line-strong, var(--line)); border-radius: 12px; padding: 12px; }
+.calib .box b { display: flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 500; }
+.calib .box b .i { width: 16px; height: 16px; color: var(--primary); }
+pre.code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; background: var(--neutral); border-radius: 12px; padding: 10px 12px; overflow: auto; margin: 12px 0 0; }
+.log { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; background: #111a24; color: #b9f5c8; border-radius: 12px; padding: 10px 12px; height: 210px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }
+.log .err { color: #ffb4ae; } .log .info { color: #9cc7ff; }
+.log div { animation: fade .25s both; }
+.alerta[hidden] { display: none; }
+details summary { cursor: pointer; font-size: .9rem; font-weight: 500; color: var(--link, var(--primary)); }
+label.tog { display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; color: var(--muted); cursor: pointer; }
+label.tog input { width: auto; accent-color: var(--primary); }
+code { font-size: .8em; background: var(--neutral); padding: 1px 5px; border-radius: 5px; }
+.flash { animation: flash .6s; }
+@keyframes flash { 0% { transform: scale(1); } 30% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@media (min-width: 900px) {
+  .sens-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; align-items: start; }
+  .sens-grid > .larga { grid-column: 1 / -1; }
+  .tiles.quatro { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 420px) { .niveis.dois { grid-template-columns: 1fr; } .calib { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./#/"><span class="brand-logo" data-ic="Plantios"></span><span class="brand-name">Minha Horta</span></a>
+  <nav class="topnav" aria-label="Menu">
+    <a href="./#/"><span data-ic="Início"></span>Início</a>
+    <a href="./#/plantios"><span data-ic="Plantios"></span>Plantios</a>
+    <a href="./#/dados"><span data-ic="Dados"></span>Dados</a>
+    <a href="teste-sensores.html" class="active"><span data-ic="Sensor"></span>Sensores</a>
+    <a href="./#/assistente"><span data-ic="Assistente"></span>Assistente</a>
+  </nav>
+  <div class="top-actions">
+    <a href="teste-sensores.html" class="icon-btn top-sens ativo" aria-label="Sensores" title="Sensores"><span data-ic="Sensor"></span></a>
+    <a href="./#/clima" class="icon-btn" aria-label="Clima" title="Clima"><span data-ic="Sol"></span></a>
+    <a href="./#/mais" class="icon-btn" aria-label="Mais opções" title="Mais opções"><span data-ic="Ajustes"></span></a>
+  </div>
+</header>
+
+<main class="view">
+  <section class="card hero">
+    <div class="sens-hero">
+      <div>
+        <h1>Sensores</h1>
+        <p class="muted" style="margin:4px 0 0">Umidade do solo e luz ao vivo, direto do Arduino pelo cabo USB. Aqui você confere e calibra; nada vai para os plantios.</p>
+        <span class="hero-chip st-chip"><span id="dot" class="dot"></span><span id="status">desconectado</span></span>
+      </div>
+      <div class="hero-ico" data-ic="Sensor"></div>
+    </div>
+  </section>
+
+  <div id="semSerial" class="alerta" style="margin-top:14px" hidden><span data-ic="Alerta"></span><div><b>Este navegador não lê o cabo USB.</b><div class="small">Abra no Chrome, Edge ou Opera do computador. O modo demonstração funciona em qualquer lugar.</div></div></div>
+  <div id="alertaSeco" class="alerta bad" style="margin-top:14px" hidden><span data-ic="Alerta"></span><div><b>Solo seco</b><div class="small">A umidade caiu abaixo de 30%. Hora de regar.</div></div></div>
+
+  <div class="sens-grid">
+    <section class="card larga">
+      <div class="ctl">
+        <div class="row wrap">
+          <button class="btn primary" id="btnConectar"><span data-ic="Plug"></span>Conectar Arduino</button>
+          <button class="btn" id="btnDesconectar" disabled>Desconectar</button>
+          <button class="btn soft" id="btnDemo"><span data-ic="Atividade"></span><span id="demoTxt">Modo demonstração</span></button>
+        </div>
+        <div class="row wrap">
+          <label>Velocidade <select id="baud"><option>9600</option><option>57600</option><option>115200</option></select></label>
+          <label class="tog"><input type="checkbox" id="bip"> Bip quando secar</label>
+        </div>
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Antes de conectar, feche o Monitor Serial do Arduino IDE. Só um programa pode usar a porta por vez.</p>
+    </section>
+
+    <section class="larga">
+      <div class="niveis dois">
+        <div class="nivel" id="nvUm">
+          <div class="n-ico"><span data-ic="Gota"></span></div>
+          <div class="n-val" id="umVal">—</div>
+          <div class="n-tit">Umidade do solo</div>
+          <span id="umChip" class="chip gray">aguardando</span>
+          <div class="n-bar"><i id="umBar" style="width:0"></i></div>
+          <div class="n-bruto">bruto <b id="umBruto">—</b> / 1023</div>
+          <div class="mini-tiles"><div><b id="umMin">—</b><span>mínimo</span></div><div><b id="umMed">—</b><span>média</span></div><div><b id="umMax">—</b><span>máximo</span></div></div>
+        </div>
+        <div class="nivel luz" id="nvLuz">
+          <div class="n-ico"><span data-ic="Sol"></span></div>
+          <div class="n-val" id="luzVal">—</div>
+          <div class="n-tit">Luz (LDR)</div>
+          <span id="luzChip" class="chip gray">aguardando</span>
+          <div class="n-bar"><i id="luzBar" style="width:0"></i></div>
+          <div class="n-bruto">bruto <b id="luzBruto">—</b> / 1023</div>
+          <div class="mini-tiles"><div><b id="luzMin">—</b><span>mínimo</span></div><div><b id="luzMed">—</b><span>média</span></div><div><b id="luzMax">—</b><span>máximo</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card larga">
+      <div class="head">
+        <h3 class="sec-title"><span data-ic="Tendência queda"></span>Últimos 2 minutos</h3>
+        <div class="legend"><span><i style="background:var(--info)"></i>Umidade %</span><span><i style="background:var(--accent)"></i>Luz %</span></div>
+      </div>
+      <svg id="grafico" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
+      <div class="stats-line">
+        <span>Leituras <b id="nLeit">0</b></span><span>Linhas/seg <b id="taxa">0</b></span><span>Última <b id="ultima">—</b></span><span>Ignoradas <b id="nErro">0</b></span>
+      </div>
+      <div class="row wrap" style="margin-top:12px;gap:8px">
+        <button class="btn sm" id="btnCsv"><span data-ic="Download"></span>Baixar CSV</button>
+        <button class="btn sm" id="btnZerar"><span data-ic="Sincronizar"></span>Zerar estatísticas</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="head"><h3 class="sec-title"><span data-ic="Folha"></span>Luz para plantas</h3><span class="chip orange">lux → PPFD → DLI</span></div>
+      <p class="small muted" style="margin:8px 0 0">O LDR não sabe o tipo de luz: escolha qual ilumina o vaso. A escolha e a calibração valem também para o app.</p>
+      <div class="grid2" style="margin-top:12px">
+        <label class="field"><span>Tipo de luz</span><select id="luzTipo"></select></label>
+        <label class="field"><span>Planta</span><select id="luzPlanta"></select></label>
+      </div>
+      <div class="tiles quatro">
+        <div class="tile"><b id="vLux">—</b><span>lux estimado</span></div>
+        <div class="tile"><b id="vPpfd">—</b><span>PPFD µmol/m²/s</span></div>
+        <div class="tile"><b id="vDli">—</b><span>DLI na sessão</span></div>
+        <div class="tile"><b id="vHoras">—</b><span>luz útil / medido</span></div>
+      </div>
+      <div class="small muted" style="margin-top:12px" id="dliTxt">Meta da planta: —</div>
+      <div class="barra-meta"><i id="dliBar"></i></div>
+      <p class="small muted" style="margin:8px 0 0" id="dliProj"></p>
+      <details style="margin-top:12px"><summary>Calibrar o lux com o celular</summary>
+        <p class="small muted">Abra um app de luxímetro no celular, coloque-o colado no LDR (luz estável, nem escuro total nem lanterna) e digite o valor.</p>
+        <div class="row wrap" style="gap:8px"><input type="number" id="luxRef" placeholder="lux do celular" style="width:160px"><button class="btn sm soft" id="btnLuxCal">Calibrar</button><button class="btn sm" id="btnLuxReset">Voltar ao padrão</button><button class="btn sm" id="btnDliZerar">Zerar DLI</button></div>
+        <p class="small muted" style="margin:8px 0 0" id="luxFormula"></p>
+      </details>
+    </section>
+
+    <section class="card">
+      <h3 class="sec-title"><span data-ic="Microscópio"></span>Calibração</h3>
+      <p class="small muted" style="margin:8px 0 0">Coloque o sensor em cada situação, espere o número parar de mudar e toque no botão. No fim, copie as linhas para o código do Arduino.</p>
+      <div class="calib">
+        <div class="box"><b><span data-ic="Gota"></span>Solo</b>
+          <div class="row wrap" style="margin-top:8px;gap:6px"><button class="btn sm" data-cal="SOLO_SECO">No ar / seco</button><button class="btn sm" data-cal="SOLO_MOLHADO">Na água</button></div>
+        </div>
+        <div class="box"><b><span data-ic="Lâmpada"></span>Luz</b>
+          <div class="row wrap" style="margin-top:8px;gap:6px"><button class="btn sm" data-cal="LUZ_ESCURO">Tampado</button><button class="btn sm" data-cal="LUZ_MAXIMA">Lanterna</button></div>
+        </div>
+      </div>
+      <pre class="code" id="calCodigo"></pre>
+    </section>
+
+    <section class="card larga">
+      <div class="head">
+        <h3 class="sec-title"><span data-ic="Documento"></span>Monitor do cabo</h3>
+        <div class="row" style="gap:10px"><label class="tog"><input type="checkbox" id="pausar"> Pausar</label><button class="btn sm" id="btnLimpar">Limpar</button></div>
+      </div>
+      <div class="log" id="log"></div>
+      <p class="small muted" style="margin:8px 0 0">Formatos aceitos: <code>Umidade:62,Luz:40,SoloBruto:620,LuzBruto:410</code>, JSON (<code>{"umidade_solo":62,"luz":40}</code>) ou texto (<code>Umidade: 62% | Luz: 40%</code>).</p>
+    </section>
+  </div>
+</main>
+
+<nav class="tabbar" aria-label="Navegação principal">
+  <a href="./#/"><span data-ic="Início"></span><span>Início</span></a>
+  <a href="./#/plantios"><span data-ic="Plantios"></span><span>Plantios</span></a>
+  <a href="./#/novo" class="tab-add" aria-label="Novo plantio"><span data-ic="Adicionar"></span></a>
+  <a href="./#/dados"><span data-ic="Dados"></span><span>Dados</span></a>
+  <a href="./#/assistente"><span data-ic="Assistente"></span><span>Assistente</span></a>
+</nav>
+<div class="toast" id="toast"></div>
+<script src="icons.js?v=1.6.2"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const LIMITE_SECO = 30, LIMITE_ATENCAO = 45;
+const JANELA_MS = 120e3;
+
+let porta = null, leitor = null, pipe = null, demoTimer = null;
+let pontos = [];           // {t, um, luz}
+let todas = [];            // para CSV
+let stats, nErro = 0, linhasSeg = [], estadoAnterior = '';
+const cal = JSON.parse(localStorage.getItem('teste-cal') || '{"SOLO_SECO":1023,"SOLO_MOLHADO":350,"LUZ_ESCURO":50,"LUZ_MAXIMA":950}');
+let ultimoBruto = { solo: null, luz: null };
+
+function zerarStats() { stats = { um: { min: Infinity, max: -Infinity, soma: 0, n: 0 }, luz: { min: Infinity, max: -Infinity, soma: 0, n: 0 } }; }
+zerarStats();
+
+/* ---------- leitura de uma linha ---------- */
+const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function lerLinha(linha) {
+  const ch = {};
+  if (linha.startsWith('{')) {
+    try { for (const [k, v] of Object.entries(JSON.parse(linha))) ch[norm(k)] = v; } catch { return null; }
+  } else {
+    const re = /([A-Za-zÀ-ÿ_]+)\s*[:=]\s*(-?\d+(?:[.,]\d+)?)/g; let m;
+    while ((m = re.exec(linha))) ch[norm(m[1])] = Number(m[2].replace(',', '.'));
+  }
+  const n = (...ks) => { for (const k of ks) if (ch[k] != null && !isNaN(Number(ch[k]))) return Number(ch[k]); return null; };
+  const r = {
+    um: n('umidadesolo', 'umidade', 'solo', 'soil'), luz: n('luz', 'light', 'lux', 'ldr', 'luminosidade'),
+    soloBruto: n('solobruto', 'bruto'), luzBruto: n('luzbruto', 'ldrbruto')
+  };
+  return (r.um == null && r.luz == null) ? null : r;
+}
+
+/* ---------- luz para plantas (mesma lógica do app) ---------- */
+const TIPOS_LUZ = { sol: ['Sol (janela ou ar livre)', 0.0185], led: ['LED branco comum', 0.015], ledfull: ['LED de cultivo branco', 0.017], cultivo: ['LED de cultivo roxo', 0.04], fluor: ['Fluorescente branca', 0.0135], sodio: ['Vapor de sódio', 0.0122] };
+const DLI_ALVO = { 'Alface': [12, 17], 'Rúcula': [12, 17], 'Coentro / cebolinha / salsinha': [10, 16], 'Manjericão': [12, 18], 'Couve': [12, 17], 'Microverdes': [6, 12], 'Morango': [15, 20], 'Tomate / pimenta / pepino': [20, 30], 'Mudas de maracujá': [15, 25] };
+const LUZ_PADRAO = { tipo: 'sol', r10: 15000, gama: 0.7, rFixo: 10000 };
+const LUX_UTIL = 1000;
+function lerCfgApp() { try { return JSON.parse(localStorage.getItem('horta-config') || '{}'); } catch { return {}; } }
+let luzCfg = { ...LUZ_PADRAO, ...(lerCfgApp().luz || {}) };
+function salvarLuzCfg() { const c = lerCfgApp(); c.luz = luzCfg; localStorage.setItem('horta-config', JSON.stringify(c)); }
+let sessao = { mol: 0, segLuz: 0, segMed: 0, ts: 0 }, ultimoLux = null;
+const fmtH = (seg) => { const m = Math.round(seg / 60); return m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
+function luxDoBruto(b) {
+  if (b == null) return null; if (b <= 0) return 0;
+  const R = luzCfg.rFixo * (1023 / Math.min(b, 1022) - 1);
+  return Math.round(Math.min(150000, 10 * Math.pow(luzCfg.r10 / R, 1 / luzCfg.gama)));
+}
+function atualizarLuzPlanta(bruto) {
+  const lux = luxDoBruto(bruto); if (lux == null) return;
+  ultimoLux = lux;
+  const ppfd = lux * TIPOS_LUZ[luzCfg.tipo][1], agora = Date.now(), dt = (agora - sessao.ts) / 1000;
+  if (sessao.ts && dt > 0 && dt <= 120) { sessao.mol += ppfd * dt / 1e6; sessao.segMed += dt; if (lux >= LUX_UTIL) sessao.segLuz += dt; }
+  sessao.ts = agora;
+  $('vLux').textContent = lux.toLocaleString('pt-BR'); $('vPpfd').textContent = Math.round(ppfd);
+  pintarDli(ppfd);
+}
+function pintarDli(ppfd) {
+  $('vDli').textContent = sessao.mol.toFixed(2).replace('.', ',');
+  $('vHoras').textContent = fmtH(sessao.segLuz) + ' / ' + fmtH(sessao.segMed);
+  const alvo = DLI_ALVO[$('luzPlanta').value];
+  $('dliTxt').textContent = `Meta ${$('luzPlanta').value}: ${alvo[0]}–${alvo[1]} mol/m²/dia · nesta sessão: ${Math.round(sessao.mol / alvo[0] * 100)}%`;
+  $('dliBar').style.width = Math.min(100, sessao.mol / alvo[0] * 100) + '%';
+  if (ppfd != null) {
+    const dliDia = ppfd * 0.0036 * 12;   // se essa luz durasse 12 h
+    $('dliProj').textContent = `Se a luz de agora (${Math.round(ppfd)} µmol/m²/s) durasse 12 h, a planta receberia ${dliDia.toFixed(1).replace('.', ',')} mol/m² no dia: ${dliDia < alvo[0] ? 'abaixo da meta' : dliDia > alvo[1] * 1.5 ? 'bem acima da meta (cuidado com calor)' : 'dentro da meta'}.`;
+  }
+  $('luxFormula').textContent = `Fórmula: R10 = ${Math.round(luzCfg.r10)} Ω · gama = ${luzCfg.gama} · resistor fixo = ${luzCfg.rFixo} Ω`;
+}
+$('luzTipo').innerHTML = Object.entries(TIPOS_LUZ).map(([k, [n]]) => `<option value="${k}" ${k === luzCfg.tipo ? 'selected' : ''}>${n}</option>`).join('');
+$('luzPlanta').innerHTML = Object.keys(DLI_ALVO).map((k) => `<option>${k}</option>`).join('');
+$('luzPlanta').value = localStorage.getItem('teste-planta') || 'Alface';
+$('luzTipo').onchange = () => { luzCfg.tipo = $('luzTipo').value; salvarLuzCfg(); toast('Tipo de luz salvo'); };
+$('luzPlanta').onchange = () => { localStorage.setItem('teste-planta', $('luzPlanta').value); pintarDli(null); };
+$('btnLuxCal').onclick = () => {
+  const ref = Number($('luxRef').value), b = ultimoBruto.luz;
+  if (!(ref > 0)) return toast('Digite o valor de lux do celular');
+  if (b == null || b <= 0 || b >= 1023) return toast('Precisa de leitura de luz (nem escuro total nem saturada)');
+  const R = luzCfg.rFixo * (1023 / b - 1);
+  luzCfg.r10 = Math.round(R * Math.pow(ref / 10, luzCfg.gama)); salvarLuzCfg();
+  atualizarLuzPlanta(b); toast('Calibrado: ' + luxDoBruto(b).toLocaleString('pt-BR') + ' lux');
+};
+$('btnLuxReset').onclick = () => { luzCfg = { ...LUZ_PADRAO, tipo: luzCfg.tipo }; salvarLuzCfg(); if (ultimoBruto.luz != null) atualizarLuzPlanta(ultimoBruto.luz); else pintarDli(null); toast('Fórmula padrão restaurada'); };
+$('btnDliZerar').onclick = () => { sessao = { mol: 0, segLuz: 0, segMed: 0, ts: 0 }; pintarDli(null); };
+pintarDli(null);
+
+/* ---------- interface ---------- */
+const estadoSolo = (p) => p <= LIMITE_SECO ? ['seco', 'bad', 'Seco', 'bad'] : p <= LIMITE_ATENCAO ? ['atencao', 'warn', 'Quase seco', 'warn'] : ['ok', '', 'Úmido', ''];
+const nivelLuz = (p) => p < 10 ? ['gray', 'Escuro'] : p < 35 ? ['orange', 'Pouca luz'] : p < 70 ? ['orange', 'Luz média'] : ['', 'Luz forte'];
+const barra = (el, p) => { el.style.width = Math.max(2, Math.min(100, p)) + '%'; };
+const trocaNum = (el, txt) => { if (el.textContent !== txt) { el.textContent = txt; if (!semMov()) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } } };
+const fmt = (v) => isFinite(v) ? Math.round(v) + '%' : '—';
+
+function aplicar(r, bruta) {
+  const t = Date.now();
+  linhasSeg.push(t);
+  if (r.um != null) {
+    const [est, cls, txt, cor] = estadoSolo(r.um);
+    trocaNum($('umVal'), r.um + '%'); $('nvUm').className = 'nivel ' + cor; barra($('umBar'), r.um);
+    $('alertaSeco').hidden = est !== 'seco';
+    $('umChip').className = 'chip ' + cls; $('umChip').textContent = txt;
+    const s = stats.um; s.min = Math.min(s.min, r.um); s.max = Math.max(s.max, r.um); s.soma += r.um; s.n++;
+    $('umMin').textContent = fmt(s.min); $('umMax').textContent = fmt(s.max); $('umMed').textContent = fmt(s.soma / s.n);
+    if (est === 'seco' && estadoAnterior && estadoAnterior !== 'seco') { toast('Solo secou — hora de regar!'); if ($('bip').checked) bip(); }
+    estadoAnterior = est;
+  }
+  if (r.luz != null) {
+    const [cls, txt] = nivelLuz(r.luz);
+    trocaNum($('luzVal'), r.luz + '%'); barra($('luzBar'), r.luz);
+    $('luzChip').className = 'chip ' + cls; $('luzChip').textContent = txt;
+    const s = stats.luz; s.min = Math.min(s.min, r.luz); s.max = Math.max(s.max, r.luz); s.soma += r.luz; s.n++;
+    $('luzMin').textContent = fmt(s.min); $('luzMax').textContent = fmt(s.max); $('luzMed').textContent = fmt(s.soma / s.n);
+  }
+  if (r.soloBruto != null) { $('umBruto').textContent = r.soloBruto; ultimoBruto.solo = r.soloBruto; }
+  if (r.luzBruto != null) { $('luzBruto').textContent = r.luzBruto; ultimoBruto.luz = r.luzBruto; atualizarLuzPlanta(r.luzBruto); }
+  pontos.push({ t, um: r.um, luz: r.luz });
+  pontos = pontos.filter((p) => t - p.t <= JANELA_MS);
+  todas.push({ data: new Date(t).toISOString(), ...r, linha: bruta });
+  if (todas.length > 20000) todas.shift();
+  $('nLeit').textContent = todas.length;
+  $('ultima').textContent = new Date(t).toLocaleTimeString('pt-BR');
+  desenhar();
+}
+
+function desenhar() {
+  const W = 600, H = 220, P = 24, svg = $('grafico'), agora = Date.now();
+  const x = (t) => P + (W - 2 * P) * (1 - (agora - t) / JANELA_MS);
+  const y = (v) => H - P - (H - 2 * P) * v / 100;
+  let g = '';
+  for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${P}" x2="${W - P}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="2" y="${y(v) + 4}" font-size="10" fill="var(--muted)">${v}</text>`;
+  g += `<rect x="${P}" y="${y(LIMITE_ATENCAO)}" width="${W - 2 * P}" height="${y(0) - y(LIMITE_ATENCAO)}" fill="var(--danger)" fill-opacity=".05"/>`;
+  for (const [k, cor] of [['um', 'var(--info)'], ['luz', 'var(--accent)']]) {
+    const ps = pontos.filter((p) => p[k] != null);
+    if (ps.length < 2) continue;
+    g += `<polyline fill="none" stroke="${cor}" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="${ps.map((p) => x(p.t).toFixed(1) + ',' + y(p[k]).toFixed(1)).join(' ')}"/>`;
+  }
+  svg.innerHTML = g;
+}
+
+function logar(txt, cls) {
+  if ($('pausar').checked) return;
+  const el = $('log'), d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = new Date().toLocaleTimeString('pt-BR') + '  ' + txt;
+  el.appendChild(d);
+  while (el.childNodes.length > 300) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+function processar(linha) {
+  linha = linha.trim(); if (!linha) return;
+  const r = lerLinha(linha);
+  if (r) { logar(linha); aplicar(r, linha); }
+  else { nErro++; $('nErro').textContent = nErro; logar(linha + '   ← ignorada', 'err'); }
+}
+function setStatus(txt, on) { $('status').textContent = txt; $('dot').className = 'dot' + (on ? ' on' : ''); }
+const semMov = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const icone = (n) => (window.ICONES && ICONES[n]) ? `<svg class="i" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ICONES[n]}</svg>` : '';
+document.querySelectorAll('[data-ic]').forEach((el) => { if (!el.firstChild) el.innerHTML = icone(el.dataset.ic); });
+/* entrada em cascata dos blocos */
+if (!semMov()) document.querySelectorAll('.hero, .sens-grid > *, .nivel, .tile').forEach((el, i) => { el.style.animationDelay = Math.min(i * 45, 600) + 'ms'; el.classList.add('ent'); });
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('show'), 3500); }
+function bip() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); setTimeout(() => { o.stop(); a.close(); }, 250); } catch {} }
+
+setInterval(() => { const t = Date.now(); linhasSeg = linhasSeg.filter((x) => t - x < 5000); $('taxa').textContent = (linhasSeg.length / 5).toFixed(1); if (pontos.length) desenhar(); }, 1000);
+
+/* ---------- cabo USB (Web Serial) ---------- */
+if (!('serial' in navigator)) { $('semSerial').hidden = false; $('btnConectar').disabled = true; }
+
+async function conectar() {
+  pararDemo();
+  try {
+    porta = await navigator.serial.requestPort();
+    await porta.open({ baudRate: Number($('baud').value) });
+  } catch (e) {
+    porta = null;
+    if (e.name !== 'NotFoundError') { logar('Erro ao abrir a porta: ' + e.message, 'err'); toast('Porta ocupada? Feche o Monitor Serial do Arduino IDE.'); }
+    return;
+  }
+  const info = porta.getInfo?.() || {};
+  setStatus('conectado · ' + $('baud').value + ' baud', true);
+  logar(`Conectado (USB ${info.usbVendorId?.toString(16) || '?'}:${info.usbProductId?.toString(16) || '?'})`, 'info');
+  $('btnConectar').disabled = true; $('btnDesconectar').disabled = false;
+  const dec = new TextDecoderStream();
+  pipe = porta.readable.pipeTo(dec.writable).catch(() => {});
+  leitor = dec.readable.getReader();
+  let buf = '';
+  try {
+    while (true) {
+      const { value, done } = await leitor.read();
+      if (done) break;
+      buf += value; let i;
+      while ((i = buf.indexOf('\n')) >= 0) { processar(buf.slice(0, i)); buf = buf.slice(i + 1); }
+      if (buf.length > 4000) buf = '';
+    }
+  } catch (e) { logar('Leitura interrompida: ' + e.message, 'err'); }
+  await desconectar(true);
+}
+async function desconectar(silencioso) {
+  try { await leitor?.cancel(); } catch {}
+  try { await pipe; } catch {}
+  try { await porta?.close(); } catch {}
+  if (porta && !silencioso) logar('Desconectado', 'info');
+  porta = leitor = pipe = null;
+  setStatus('desconectado', false);
+  $('btnConectar').disabled = !('serial' in navigator); $('btnDesconectar').disabled = true;
+}
+if ('serial' in navigator) navigator.serial.addEventListener('disconnect', () => { if (porta) { toast('Cabo desconectado'); desconectar(); } });
+
+/* ---------- modo demonstração ---------- */
+function iniciarDemo() {
+  if (porta) return;
+  let um = 70, luz = 55, k = 0;
+  setStatus('demonstração', true); $('demoTxt').textContent = 'Parar demonstração';
+  logar('Modo demonstração: dados simulados', 'info');
+  demoTimer = setInterval(() => {
+    k++; um = Math.max(5, um - Math.random() * 1.6); if (um < 22 && Math.random() < .08) um = 75;
+    luz = Math.max(0, Math.min(100, 55 + 35 * Math.sin(k / 20) + (Math.random() - .5) * 6));
+    const u = Math.round(um), l = Math.round(luz);
+    processar(`Umidade:${u},Luz:${l},SoloBruto:${Math.round(1023 - u * 6.73)},LuzBruto:${Math.round(50 + l * 9)}`);
+  }, 1000);
+}
+function pararDemo() { if (!demoTimer) return; clearInterval(demoTimer); demoTimer = null; $('demoTxt').textContent = 'Modo demonstração'; if (!porta) setStatus('desconectado', false); }
+
+/* ---------- calibração ---------- */
+function mostrarCal() {
+  $('calCodigo').textContent =
+`// cole no topo do horta_umidade_luz.ino
+const int SOLO_SECO    = ${cal.SOLO_SECO};
+const int SOLO_MOLHADO = ${cal.SOLO_MOLHADO};
+const int LUZ_ESCURO   = ${cal.LUZ_ESCURO};
+const int LUZ_MAXIMA   = ${cal.LUZ_MAXIMA};`;
+}
+document.querySelectorAll('[data-cal]').forEach((b) => b.addEventListener('click', () => {
+  const k = b.dataset.cal, v = k.startsWith('SOLO') ? ultimoBruto.solo : ultimoBruto.luz;
+  if (v == null) { toast('Ainda não chegou nenhum valor bruto desse sensor'); return; }
+  cal[k] = v; localStorage.setItem('teste-cal', JSON.stringify(cal)); mostrarCal(); toast(`${k} = ${v}`);
+}));
+mostrarCal();
+
+/* ---------- botões ---------- */
+$('btnConectar').onclick = conectar;
+$('btnDesconectar').onclick = () => desconectar();
+$('btnDemo').onclick = () => demoTimer ? pararDemo() : iniciarDemo();
+$('btnLimpar').onclick = () => { $('log').innerHTML = ''; };
+$('btnZerar').onclick = () => { zerarStats(); pontos = []; nErro = 0; $('nErro').textContent = 0; ['umMin', 'umMed', 'umMax', 'luzMin', 'luzMed', 'luzMax'].forEach((i) => $(i).textContent = '—'); desenhar(); };
+$('btnCsv').onclick = () => {
+  if (!todas.length) { toast('Ainda não há leituras'); return; }
+  const csv = 'data;umidade_solo;luz;solo_bruto;luz_bruto\n' + todas.map((r) => [r.data, r.um ?? '', r.luz ?? '', r.soloBruto ?? '', r.luzBruto ?? ''].join(';')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'teste-sensores-' + new Date().toISOString().slice(0, 16).replace(':', 'h') + '.csv'; a.click();
+};
+desenhar();
+</script>
+</body>
+</html>
