@@ -3,7 +3,7 @@
    e podem ir para a nuvem (GitHub Gist) quando houver internet. */
 'use strict';
 
-const VERSAO = '1.7.0';
+const VERSAO = '1.8.0';
 
 /* =================== ÍCONES (exportados do Figma) =================== */
 const ic = (n, cls = '') => (window.ICONES && ICONES[n]) ? `<svg class="i ${cls}" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ICONES[n]}</svg>` : '';
@@ -31,6 +31,32 @@ function iconizar(root) {
     n.replaceWith(...tmp.childNodes);
   }
   root.querySelectorAll('[data-ic]').forEach((el) => { if (!el.firstChild) el.innerHTML = ic(el.dataset.ic); });
+}
+
+/* =================== VERSÃO =================== */
+const NOVIDADES = {
+  '1.8.0': ['Versão do app no canto da tela, com histórico de atualizações', 'Catálogo offline com 113 plantas: hortaliças, temperos, raízes, grãos de roça, forrageiras e frutas', 'Busca e identificação automática da planta ao cadastrar', 'Tipo de plantio: semente ou muda no local definitivo, muda p/ transplante ou p/ venda', 'Linha do tempo até os frutos (floração, frutificação) para plantios na roça'],
+  '1.7.0': ['Editar datas da linha do tempo e do diário', 'Covas/pontos plantados, sementes por cova e taxa de covas que brotaram'],
+  '1.6.2': ['Página de sensores no visual novo e atalho no menu'],
+  '1.6.0': ['Visual do Figma com 3 temas, ícones e animações']
+};
+function registrarVersao() {
+  let hist = []; try { hist = JSON.parse(localStorage.getItem('horta-versoes') || '[]'); } catch {}
+  const ult = hist[hist.length - 1];
+  if (!ult || ult.para !== VERSAO) {
+    hist.push({ de: ult ? ult.para : null, para: VERSAO, data: new Date().toISOString() });
+    try { localStorage.setItem('horta-versoes', JSON.stringify(hist.slice(-30))); } catch {}
+    if (ult) setTimeout(() => toast(`Atualizado: v${ult.para} → v${VERSAO}`, 4500), 800);
+  }
+  return hist;
+}
+function sheetVersoes() {
+  let hist = []; try { hist = JSON.parse(localStorage.getItem('horta-versoes') || '[]'); } catch {}
+  abrirModal(`<div class="row between"><h2>Minha Horta v${VERSAO}</h2><button class="icon-btn" data-act="fechar" aria-label="Fechar">✕</button></div>
+    ${NOVIDADES[VERSAO] ? `<h3 style="margin:12px 0 6px">Novidades desta versão</h3><ul class="small novidades">${NOVIDADES[VERSAO].map((n) => `<li>${h(n)}</li>`).join('')}</ul>` : ''}
+    <h3 style="margin:16px 0 6px">Atualizações neste aparelho</h3>
+    <div class="ed-grupo">${[...hist].reverse().map((x) => `<div class="ed-linha"><div class="ed-txt"><b>${x.de ? `v${h(x.de)} → v${h(x.para)}` : `Instalado na v${h(x.para)}`}</b><small>${fmtData(x.data)}</small></div></div>`).join('') || '<div class="ed-linha small muted">Sem registros.</div>'}</div>
+    <p class="small muted" style="margin:10px 0 0">O histórico começa a contar a partir da v1.8.0 neste aparelho.</p>`);
 }
 
 /* =================== ANIMAÇÕES =================== */
@@ -195,10 +221,62 @@ function saudacao() { const hr = new Date().getHours(); return hr < 12 ? 'Bom di
 
 /* =================== CULTURAS / ANÁLISE =================== */
 function todasCulturas() { return [...window.CATALOGO, ...state.culturasCustom]; }
+/* O que é este plantio? (define a meta e a linha do tempo) */
+const FINALIDADES = {
+  'local-semente': { e: '🌰', nome: 'Semente no local definitivo', curto: 'Semente no local', sub: 'Vaso, canteiro ou roça: cresce ali até colher' },
+  'local-muda': { e: '🪴', nome: 'Muda no local definitivo', curto: 'Muda no local', sub: 'Plantou a muda na roça/canteiro: linha do tempo até os frutos' },
+  'muda-transplante': { e: '🌱', nome: 'Fazer muda p/ transplantar', curto: 'Muda p/ transplante', sub: 'Copinho, saquinho ou bandeja; depois vai para a roça' },
+  'muda-venda': { e: '💰', nome: 'Fazer muda p/ vender', curto: 'Muda p/ venda', sub: 'Produção de mudas para comercializar' }
+};
+const MUDA_ANTIGA = ['maracuja', 'melancia', 'mamao'];   // no catálogo antigo estas eram "muda"
+function finalidade(p) {
+  if (p.finalidade && FINALIDADES[p.finalidade]) return p.finalidade;
+  if (p.metodo === 'muda') return 'local-muda';
+  return MUDA_ANTIGA.includes(p.cultura) && ['Copinho', 'Bandeja de mudas', 'Vaso', ''].includes(p.recipiente || '') ? 'muda-transplante' : 'local-semente';
+}
+function faseTipo(b) {
+  const g = norm(b.grupo || b.tipo || '');
+  return /broto/.test(g) ? 'broto' : /raiz/.test(g) ? 'raiz' : /fruto|fruta|grao|muda frut/.test(g) ? 'fruto' : 'folha';
+}
 function cultura(p) {
-  return todasCulturas().find((c) => c.id === p.cultura) || {
+  const b = todasCulturas().find((c) => c.id === p.cultura) || {
     id: 'outro', nome: p.nome || 'Planta', e: '🌱', tipo: 'Outro', germ: [5, 14], alvo: 60, alvoLabel: 'colheita', rega: 1, luz: '—', temp: null, ph: null, umid: null, dica: ''
   };
+  const fin = finalidade(p);
+  const cs = b.c || b.alvo || 60, m = b.m || 0;
+  const t = b.t || Math.max(15, Math.round(cs - m * 0.8));
+  const lbl = b.lbl || b.alvoLabel || 'colheita';
+  let alvo = cs, alvoLabel = lbl, flor = b.f || null, fase = faseTipo(b);
+  if (fin === 'muda-transplante' || fin === 'muda-venda') {
+    alvo = m || Math.max(15, Math.round(cs * 0.3)); alvoLabel = fin === 'muda-venda' ? 'muda pronta p/ venda' : 'muda pronta p/ transplante'; flor = null; fase = 'muda';
+  } else if (fin === 'local-muda') {
+    alvo = t; flor = b.f ? Math.max(10, Math.round(b.f - (cs - t))) : null;
+  }
+  return { ...b, alvo, alvoLabel, flor, fase, fin, cSemente: cs, tMuda: t, mDias: m };
+}
+/* procura uma planta no catálogo pelo nome (sem internet) */
+function acharCultura(txt) {
+  const q = norm(txt).replace(/[^a-z0-9 ]/g, ' ').trim(); if (q.length < 2) return [];
+  const pontos = (c) => {
+    const nomes = [c.nome, ...(c.alias || [])].map((n) => norm(n).replace(/[^a-z0-9 ]/g, ' ').trim());
+    let best = 0;
+    for (const n of nomes) {
+      if (n === q) best = Math.max(best, 100);
+      else if (n.split(/ \/ | /).includes(q) || n.startsWith(q + ' ')) best = Math.max(best, 80);
+      else if (n.startsWith(q)) best = Math.max(best, 70);
+      else if (n.includes(q)) best = Math.max(best, 50);
+      else if (q.includes(n) && n.length > 3) best = Math.max(best, 45);
+    }
+    return best;
+  };
+  return todasCulturas().map((c) => [c, pontos(c)]).filter(([, n]) => n).sort((a, b) => b[1] - a[1] || a[0].nome.localeCompare(b[0].nome)).map(([c, n]) => ({ c, n }));
+}
+/* prazo legível: 45 dias · ~5 meses · ~2,5 anos */
+function fmtPrazo(d) {
+  d = Math.round(d);
+  if (d < 75) return plural(d, 'dia');
+  if (d < 600) return `~${Math.round(d / 30)} meses`;
+  return `~${(Math.round(d / 182.5) / 2).toString().replace('.', ',')} anos`;
 }
 function nomePlantio(p) { const c = cultura(p); return (p.nome || c.nome) + (p.variedade ? ` · ${p.variedade}` : ''); }
 const ev = (p, tipo) => (p.eventos || []).filter((e) => e.tipo === tipo).sort((a, b) => new Date(a.data) - new Date(b.data));
@@ -387,7 +465,7 @@ function cardAcao(a) {
 function fasesPlantio(p, a = analisar(p)) {
   const c = a.c, base = inicioDia(new Date(p.data)), G = c.germ || [5, 14], A = Math.max(c.alvo || 60, 3);
   const naData = (d) => new Date(base.getTime() + Math.round(d) * DIA);
-  const tipo = norm(c.tipo || '');
+  const tipo = c.fase || norm(c.tipo || '');
   const estaca = p.metodo === 'estaca', muda = !a.precisaGerm;
   const germPrev = (G[0] + G[1]) / 2;
   const desvio = a.germDia != null ? a.germDia - germPrev : 0;       // germinou antes/depois do previsto
@@ -398,20 +476,30 @@ function fasesPlantio(p, a = analisar(p)) {
     : { e: '🌱', curto: estaca ? 'Raiz' : 'Germina', nome: estaca ? 'Enraizamento' : 'Germinação', dia: G[1], faixa: G, dica: `Esperado entre o dia ${G[0]} e o ${G[1]}. Mantenha o substrato úmido.` });
   const meio = (frac) => G[1] + (A - G[1]) * frac;
   let inter = [];
+  const fl = c.flor && c.flor > (muda ? 12 : G[1] + 5) && c.flor < A ? c.flor : null;
   if (/broto/.test(tipo)) inter = [{ e: '🍃', curto: 'Folhinhas', nome: 'Folhinhas abertas', dia: Math.max(G[1] + 1, A - 3), dica: 'Tire a tampa/peso e dê luz para esverdear.' }];
-  else if (/fruto/.test(tipo)) inter = [
-    { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: G[1] + 10, dica: 'Hora de adubar leve e, se for o caso, transplantar.' },
-    { e: '🌼', curto: 'Flores', nome: 'Floração', dia: meio(0.6), dica: 'Ajude a polinização: balance a planta ou use um pincel.' }];
+  else if (/fruto/.test(tipo)) {
+    const diaFlor = fl || (muda ? A * 0.55 : meio(0.55));
+    inter = [
+      { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: G[1] + 10, dica: 'Hora de adubar leve e fazer o desbaste.' },
+      { e: '🌿', curto: 'Cresce', nome: c.perene ? 'Formação da planta' : 'Crescimento das ramas', dia: (muda ? 0 : G[1] + 10) + (diaFlor - (muda ? 0 : G[1] + 10)) * 0.5, dica: c.perene ? 'Fase de formar galhos e raiz: adubação de crescimento, tutor/espaldeira e controle do mato.' : 'Adubação de cobertura e controle do mato. Fase que mais pede água.' },
+      { e: '🌼', curto: 'Flores', nome: 'Floração', dia: diaFlor, dica: /grao/.test(norm(c.grupo || '')) ? 'Fase crítica: falta de água agora derruba a produção.' : 'Proteja as abelhas e polinizadores; sem eles não há fruto.' },
+      { e: '🫐', curto: 'Frutos', nome: /grao/.test(norm(c.grupo || '')) ? 'Enchimento dos grãos' : 'Frutos se formando', dia: diaFlor + (A - diaFlor) * 0.35, dica: 'Mantenha água e adubo (potássio) constantes para o fruto crescer.' }];
+  }
   else if (/raiz/.test(tipo)) inter = [
     { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: G[1] + 8, dica: 'Faça o desbaste: deixe as mais fortes com espaço.' },
     { e: '🥕', curto: 'Engrossa', nome: 'Raiz engrossando', dia: meio(0.6), dica: 'Rega constante evita raiz rachada.' }];
   else if (/muda/.test(tipo)) inter = [
-    { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: G[1] + 10, dica: 'Comece a adubar leve a cada 15 dias.' },
-    { e: '☀️', curto: 'Rustifica', nome: 'Rustificação', dia: A - 7, dica: 'Aumente o sol aos poucos para a muda se acostumar ao campo.' }];
+    { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: Math.min(G[1] + 10, G[1] + (A - G[1]) * 0.45), dica: 'Comece a adubar leve a cada 15 dias.' },
+    { e: '☀️', curto: 'Rustifica', nome: 'Rustificação', dia: Math.max(A - 7, G[1] + (A - G[1]) * 0.75), dica: 'Aumente o sol aos poucos para a muda se acostumar ao campo.' }];
   else inter = [
     { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: G[1] + 7, dica: 'Desbaste e primeira adubação leve.' },
     { e: '🌿', curto: 'Cresce', nome: 'Crescimento forte', dia: meio(0.55), dica: 'Fase que mais pede luz e água.' }];
-  if (muda) inter = inter.filter((x) => x.curto !== 'Folhas');
+  if (muda) {
+    inter = inter.filter((x) => x.curto !== 'Folhas');
+    inter.unshift({ e: '🌱', curto: 'Pega', nome: 'Pegamento da muda', dia: Math.min(12, Math.max(5, Math.round(A * 0.1))), dica: 'A muda "pegou" quando solta folha nova. Regue todo dia nesse começo.' });
+  }
+  if (/muda/.test(tipo) && c.fin === 'muda-venda') inter = inter.map((x) => x.curto === 'Rustifica' ? { ...x, dica: 'Pegue mais sol aos poucos: muda rustificada vende melhor e pega mais na roça.' } : x);
   for (const x of inter) {
     const m = p.marcos?.[x.curto];
     f.push(m ? { ...x, dia: diasDesde(p.data, new Date(m)), real: true, dica: 'Registrado ✓' } : { ...x, dia: muda ? x.dia : ajusta(x.dia) });
@@ -420,7 +508,7 @@ function fasesPlantio(p, a = analisar(p)) {
   const ultimo = c.alvoLabel || 'colheita';
   f.push(colh
     ? { e: '🧺', curto: 'Colheita', nome: ultimo.charAt(0).toUpperCase() + ultimo.slice(1), dia: diasDesde(p.data, new Date(colh.data)), real: true, dica: 'Registrado ✓' }
-    : { e: '🧺', curto: /muda/.test(ultimo) ? 'Pronta' : 'Colheita', nome: ultimo.charAt(0).toUpperCase() + ultimo.slice(1), dia: A + (muda ? 0 : desvio), dica: `Referência de ~${A} dias.` });
+    : { e: /venda/.test(ultimo) ? '💰' : '🧺', curto: /muda/.test(ultimo) ? 'Pronta' : 'Colheita', nome: ultimo.charAt(0).toUpperCase() + ultimo.slice(1), dia: A + (muda ? 0 : desvio), dica: `Referência de ${fmtPrazo(A)}${c.perene && !/muda/.test(ultimo) ? '; depois segue produzindo' : ''}.` });
   // ordena, marca concluídas e a fase atual
   f.sort((x, y) => x.dia - y.dia);
   for (const x of f) { x.dia = Math.round(x.dia); x.data = naData(x.dia); x.feito = x.real || a.dia >= x.dia; }
@@ -445,7 +533,7 @@ function htmlLinhaCompleta(p, a) {
   const f = fasesPlantio(p, a);
   return `<ol class="tl-full">${f.map((x) => {
     const falta = diasDesde(new Date().toISOString(), x.data);
-    const quando = x.real ? `${fmtData(x.data.toISOString(), false)} · dia ${x.dia}` : `${x.faixa ? `entre ${fmtCurta(new Date(new Date(p.data).getTime() + x.faixa[0] * DIA))} e ` : '~'}${fmtData(x.data.toISOString(), false)} · dia ${x.dia}${!x.feito && falta > 0 ? ` · em ${plural(falta, 'dia')}` : ''}`;
+    const quando = x.real ? `${fmtData(x.data.toISOString(), false)} · dia ${x.dia}` : `${x.faixa ? `entre ${fmtCurta(new Date(new Date(p.data).getTime() + x.faixa[0] * DIA))} e ` : '~'}${fmtData(x.data.toISOString(), false)} · dia ${x.dia}${!x.feito && falta > 0 ? ` · em ${fmtPrazo(falta)}` : ''}`;
     return `<li class="${x.feito ? 'done' : ''} ${x.atual ? 'atual' : ''}"><span class="tl-ico">${x.e}</span><div><b>${h(x.nome)}</b>${x.atual ? ' <span class="chip blue" style="font-size:.7rem">próxima</span>' : ''}<div class="small muted">${quando}</div>${x.atual || !x.feito ? `<div class="small" style="margin-top:2px">${h(x.dica)}</div>` : ''}</div></li>`;
   }).join('')}</ol><p class="small muted" style="margin:8px 0 0">Datas com ~ são previsões pela média da cultura; registrar "germinou" e "colheita" deixa tudo mais preciso.</p>`;
 }
@@ -491,7 +579,7 @@ function viewInicio() {
     <section class="tiles" style="margin-top:12px">
       <div class="tile"><b>${ativos.length}</b><span>plantios ativos</span></div>
       <div class="tile"><b>${urgentes.length}</b><span>tarefas hoje</span></div>
-      <div class="tile"><b>${prox ? prox.alvoFalta + 'd' : (comGerm.length ? Math.round((germOk / comGerm.length) * 100) + '%' : '—')}</b><span>${prox ? 'p/ ' + h(prox.c.alvoLabel.split(' ')[0]) + ' (' + h(prox.c.nome.split(' ')[0]) + ')' : 'germinação'}</span></div>
+      <div class="tile"><b>${prox ? (prox.alvoFalta < 100 ? prox.alvoFalta + 'd' : Math.round(prox.alvoFalta / 30) + 'm') : (comGerm.length ? Math.round((germOk / comGerm.length) * 100) + '%' : '—')}</b><span>${prox ? 'p/ ' + h(prox.c.alvoLabel.split(' ')[0]) + ' (' + h(prox.c.nome.split(' ')[0]) + ')' : 'germinação'}</span></div>
     </section>
   </div>
 
@@ -528,21 +616,21 @@ function viewPlantios() {
 
 function viewForm(id) {
   const ed = id ? state.plantios.find((p) => p.id === id) : null;
-  const p = ed || { cultura: '', metodo: 'semente', data: paraInputLocal(), local: '', recipiente: 'Vaso', quantidade: '', substrato: '', notas: '', variedade: '', nome: '', sensorId: '' };
+  const p = ed || { cultura: '', finalidade: 'local-semente', metodo: 'semente', data: paraInputLocal(), local: '', recipiente: 'Vaso', quantidade: '', substrato: '', notas: '', variedade: '', nome: '', sensorId: '' };
   const culturas = todasCulturas();
+  const finP = ed ? finalidade(ed) : 'local-semente';
   return {
     html: `
     <h1>${ed ? 'Editar plantio' : 'Novo plantio'}</h1>
     <p class="muted">${ed ? 'Ajuste as informações.' : 'Conte o que você está plantando. Só a planta e a data são obrigatórias.'}</p>
     <form id="fPlantio" class="card" autocomplete="off">
       <span class="small muted" style="font-weight:600">1. O que você está plantando?</span>
-      <div class="picker" style="margin-top:8px">
-        ${culturas.map((c) => `<button type="button" class="pick ${p.cultura === c.id ? 'sel' : ''}" data-cult="${c.id}"><span class="e">${icc(c)}</span>${h(c.nome)}</button>`).join('')}
-        <button type="button" class="pick ${p.cultura === 'outro' ? 'sel' : ''}" data-cult="outro"><span class="e">➕</span>Outra</button>
-      </div>
+      <input type="search" id="buscaCult" class="busca-cult" placeholder="Buscar entre ${culturas.length} plantas (ex.: quiabo, feijão, manga)" autocomplete="off">
+      <div class="picker" id="pickCult" style="margin-top:8px"></div>
       <input type="hidden" name="cultura" value="${h(p.cultura)}">
       <div id="boxOutro" ${p.cultura === 'outro' ? '' : 'hidden'}>
-        <label class="field"><span>Nome da planta</span><input type="text" name="nome" value="${h(p.nome)}" placeholder="Ex.: Agrião"></label>
+        <label class="field"><span>Nome da planta</span><input type="text" name="nome" value="${h(p.nome)}" placeholder="Ex.: Ora-pro-nóbis"></label>
+        <div id="achou" class="small"></div>
         <div class="grid2">
           <label class="field"><span>Germina em (dias, mín–máx)</span><input type="text" name="g" placeholder="5-10"></label>
           <label class="field"><span>Meta em (dias)</span><input type="number" name="alvo" placeholder="60"></label>
@@ -554,11 +642,13 @@ function viewForm(id) {
 
       <label class="field"><span>Variedade (opcional)</span><input type="text" name="variedade" value="${h(p.variedade)}" placeholder="Ex.: Crespa, Americana, Roxa…"></label>
 
-      <label class="field"><span>2. Como?</span></label>
-      <div class="seg" id="segMetodo">
-        ${[['semente', '🌰 Semente'], ['muda', '🪴 Muda'], ['estaca', '✂️ Estaca']].map(([k, l]) => `<button type="button" data-m="${k}" class="${p.metodo === k ? 'on' : ''}">${l}</button>`).join('')}
+      <label class="field"><span>2. O que é este plantio?</span></label>
+      <div class="fins" id="segFin">
+        ${Object.entries(FINALIDADES).map(([k, v]) => `<button type="button" data-fin="${k}" class="fin ${finP === k ? 'on' : ''}"><span class="fin-e">${v.e}</span><b>${v.nome}</b><small>${v.sub}</small></button>`).join('')}
       </div>
-      <input type="hidden" name="metodo" value="${h(p.metodo)}">
+      <input type="hidden" name="finalidade" value="${h(finP)}">
+      <label class="tog-estaca"><input type="checkbox" name="estaca" ${p.metodo === 'estaca' ? 'checked' : ''}> Feito por estaca, rama, maniva ou outra parte da planta (não semente)</label>
+      <div id="previsaoFin" class="prev-fin small"></div>
 
       <label class="field"><span>3. Quando? (data e horário aproximado)</span><input type="datetime-local" name="data" value="${h(p.data)}" required></label>
       <div class="quick">
@@ -591,22 +681,48 @@ function viewForm(id) {
     </form>`,
     mount() {
       const f = $('#fPlantio');
-      const mostraDica = () => {
-        const id = f.cultura.value; const c = culturas.find((x) => x.id === id);
-        $('#dicaCult').innerHTML = c ? `<b>${c.e} ${h(c.nome)}:</b> germina em ${c.germ[0]}–${c.germ[1]} dias · ${h(c.alvoLabel)} em ~${c.alvo} dias · regar a cada ${plural(c.rega, 'dia')} · luz ${h(c.luz)}.<br>💡 ${h(c.dica || '')}` : '';
+      const PRINCIPAIS = ['alface', 'coentro', 'cebolinha', 'couve', 'tomate', 'pimenta', 'quiabo', 'abobora', 'milho', 'feijao', 'feijao-corda', 'mandioca', 'melancia', 'maracuja', 'mamao', 'banana'];
+      const pintaPicker = () => {
+        const q = $('#buscaCult').value.trim();
+        let lista;
+        if (q) lista = acharCultura(q).slice(0, 18).map((x) => x.c);
+        else {
+          const usadas = [...new Set(state.plantios.map((x) => x.cultura))];
+          lista = [...new Set([f.cultura.value, ...usadas, ...PRINCIPAIS])].map((id) => culturas.find((c) => c.id === id)).filter(Boolean).slice(0, 20);
+        }
+        $('#pickCult').innerHTML = lista.map((c) => `<button type="button" class="pick ${f.cultura.value === c.id ? 'sel' : ''}" data-cult="${c.id}"><span class="e">${icc(c)}</span>${h(c.nome)}</button>`).join('')
+          + (q && !lista.length ? `<p class="small muted" style="grid-column:1/-1;margin:4px 0">Não encontrei "${h(q)}" no catálogo. Toque em <b>Outra</b> para cadastrar.</p>` : '')
+          + `<button type="button" class="pick ${f.cultura.value === 'outro' ? 'sel' : ''}" data-cult="outro"><span class="e">${ic('Adicionar')}</span>Outra</button>`;
+        $$('.pick', $('#pickCult')).forEach((b) => b.onclick = () => escolher(b.dataset.cult));
       };
-      mostraDica();
+      const escolher = (id) => {
+        f.cultura.value = id; $('#boxOutro').hidden = id !== 'outro';
+        if (id === 'outro' && $('#buscaCult').value && !f.nome.value) { f.nome.value = $('#buscaCult').value; checarNome(); }
+        pintaPicker(); mostraDica();
+      };
+      const checarNome = () => {
+        const r = acharCultura(f.nome.value)[0];
+        $('#achou').innerHTML = r && r.n >= 45 ? `<div class="achou">${icc(r.c)}<div><b>Encontrei no catálogo: ${h(r.c.nome)}</b><br><span class="muted">${h(r.c.resumo || '')}</span></div><button type="button" class="btn sm soft" data-usar="${r.c.id}">Usar</button></div>` : '';
+        const b = $('[data-usar]', f); if (b) b.onclick = () => { $('#buscaCult').value = ''; escolher(b.dataset.usar); };
+      };
+      f.nome.addEventListener('input', checarNome);
+      $('#buscaCult').addEventListener('input', pintaPicker);
+      const mostraDica = () => {
+        const id = f.cultura.value; const b = culturas.find((x) => x.id === id);
+        const c = b ? cultura({ cultura: id, finalidade: f.finalidade.value, metodo: f.estaca.checked ? 'estaca' : 'semente' }) : null;
+        $('#dicaCult').innerHTML = c ? `<div class="resumo-form"><b>${icc(c)} ${h(c.nome)}</b> <span class="muted">· ${h(c.grupo || c.tipo || '')}${c.perene ? ' · perene' : ''}</span>${c.resumo ? `<p>${h(c.resumo)}</p>` : ''}
+          <div>germina em ${c.germ[0]}–${c.germ[1]} dias · regar a cada ${plural(c.rega, 'dia')} · sol ${h(c.luz)}${c.temp ? ` · ${c.temp[0]}–${c.temp[1]} °C` : ''}</div>${c.dica ? `<div style="margin-top:4px">💡 ${h(c.dica)}</div>` : ''}</div>` : '';
+        $('#previsaoFin').innerHTML = c ? `Previsão: <b>${h(c.alvoLabel)}</b> em <b>${fmtPrazo(c.alvo)}</b>${c.flor ? ` · flores em ${fmtPrazo(c.flor)}` : ''}${c.fin === 'local-muda' ? ' (contando do dia em que a muda foi plantada)' : ''}.${(c.fin === 'muda-transplante' || c.fin === 'muda-venda') && !c.mDias ? ' Esta planta costuma ser semeada direto no lugar; a previsão da muda é aproximada.' : ''}${c.soVeg && !f.estaca.checked && c.fin !== 'local-muda' ? ` Normalmente se planta por ${h(c.veg)} (marque a opção acima).` : ''}` : '';
+      };
+      pintaPicker(); mostraDica();
+      $$('#segFin .fin').forEach((b) => b.onclick = () => { $$('#segFin .fin').forEach((x) => x.classList.remove('on')); b.classList.add('on'); f.finalidade.value = b.dataset.fin; mostraDica(); });
+      f.estaca.onchange = mostraDica;
       const calc = () => {
         const cv = Number(f.covas.value), sc = Number(f.sementesCova.value);
         if (cv > 0 && sc > 0) { f.quantidade.placeholder = String(Math.round(cv * sc)); $('#calcCovas').innerHTML = `${cv} covas × ${String(sc).replace('.', ',')} sementes = <b>${Math.round(cv * sc)} sementes</b>${f.quantidade.value && Number(f.quantidade.value) !== Math.round(cv * sc) ? ' (você digitou outro total; vale o que digitou)' : ''}.`; }
         else if (cv > 0 && Number(f.quantidade.value) > 0) $('#calcCovas').innerHTML = `Média de <b>${(Number(f.quantidade.value) / cv).toFixed(1).replace('.', ',')} sementes por cova</b>.`;
       };
       ['covas', 'sementesCova', 'quantidade'].forEach((n) => f[n].addEventListener('input', calc)); calc();
-      $$('.pick', f).forEach((b) => b.onclick = () => {
-        $$('.pick', f).forEach((x) => x.classList.remove('sel')); b.classList.add('sel');
-        f.cultura.value = b.dataset.cult; $('#boxOutro').hidden = b.dataset.cult !== 'outro'; mostraDica();
-      });
-      $$('#segMetodo button').forEach((b) => b.onclick = () => { $$('#segMetodo button').forEach((x) => x.classList.remove('on')); b.classList.add('on'); f.metodo.value = b.dataset.m; });
       $$('[data-q]', f).forEach((b) => b.onclick = () => {
         const d = new Date();
         if (b.dataset.q === 'manha') d.setHours(7, 0); if (b.dataset.q === 'tarde') d.setHours(16, 0);
@@ -619,6 +735,10 @@ function viewForm(id) {
         if (f.cultura.value === 'outro' && !f.nome.value.trim()) { toast('Digite o nome da planta.'); return; }
         let culturaId = f.cultura.value;
         if (culturaId === 'outro') {
+          const ach = acharCultura(f.nome.value)[0];
+          if (ach && ach.n >= 80) { culturaId = ach.c.id; toast(`Identifiquei: ${ach.c.nome} ✓`); }
+        }
+        if (culturaId === 'outro') {
           const nome = f.nome.value.trim();
           let cc = state.culturasCustom.find((c) => norm(c.nome) === norm(nome));
           if (!cc) {
@@ -629,7 +749,8 @@ function viewForm(id) {
           culturaId = cc.id;
         }
         const dados = {
-          cultura: culturaId, nome: '', variedade: f.variedade.value.trim(), metodo: f.metodo.value, data: f.data.value,
+          cultura: culturaId, nome: '', variedade: f.variedade.value.trim(), finalidade: f.finalidade.value,
+          metodo: f.finalidade.value === 'local-muda' ? 'muda' : f.estaca.checked ? 'estaca' : 'semente', data: f.data.value,
           local: f.local.value.trim(), recipiente: f.recipiente.value, substrato: f.substrato.value.trim(),
           covas: f.covas.value ? Number(f.covas.value) : '', sementesCova: f.sementesCova.value ? Number(f.sementesCova.value) : '',
           quantidade: f.quantidade.value || (Number(f.covas.value) > 0 && Number(f.sementesCova.value) > 0 ? String(Math.round(f.covas.value * f.sementesCova.value)) : ''),
@@ -662,8 +783,8 @@ function viewDetalhe(id) {
     ${p.foto ? `<div class="photo-hero" style="margin-top:12px"><img src="${p.foto}" alt=""></div>` : ''}
     <section class="card" style="margin-top:12px">
       <div class="row"><span class="det-ico">${icc(c)}</span>
-        <div class="grow"><h1>${h(nomePlantio(p))}</h1><div class="row wrap small"><span class="chip ${a.chip}">${h(a.fase)}</span><span class="muted">${h(p.metodo)} · ${h(p.local || 'sem local')}</span></div></div></div>
-      ${a.ativo ? `<div style="margin-top:14px"><div class="row between small"><span>Dia <b>${a.dia}</b></span><span class="muted">${a.alvoFalta > 0 ? `faltam ~${a.alvoFalta} dias p/ ${h(c.alvoLabel)}` : h(c.alvoLabel) + ' 🎉'}</span></div><div class="progress"><i style="width:${a.progresso}%"></i></div></div>` : ''}
+        <div class="grow"><h1>${h(nomePlantio(p))}</h1><div class="row wrap small"><span class="chip ${a.chip}">${h(a.fase)}</span><span class="muted">${h(FINALIDADES[finalidade(p)].curto)}${p.metodo === 'estaca' ? ' (estaca)' : ''} · ${h(p.local || 'sem local')}</span></div></div></div>
+      ${a.ativo ? `<div style="margin-top:14px"><div class="row between small"><span>Dia <b>${a.dia}</b></span><span class="muted">${a.alvoFalta > 0 ? `faltam ${fmtPrazo(a.alvoFalta)} p/ ${h(c.alvoLabel)}` : h(c.alvoLabel) + ' 🎉'}</span></div><div class="progress"><i style="width:${a.progresso}%"></i></div></div>` : ''}
       ${a.acoes.length ? `<div style="margin-top:14px">${a.acoes.map(cardAcao).join('')}</div>` : ''}
     </section>
     <section class="section"><div class="sec-head"><h2>Linha do tempo até ${h(c.alvoLabel)}</h2><button class="btn sm soft btn-mini" data-act="editar-datas" data-pid="${p.id}">${ic('Calendário')}Editar datas</button></div><div class="card">${htmlLinhaCompleta(p, a)}</div></section>
@@ -715,7 +836,9 @@ function viewDetalhe(id) {
     </section>
 
     <section class="section"><h2>Saber mais</h2>
-      <div class="card" id="wikiBox"><button class="btn sm" data-act="wiki" data-termo="${h(c.nome.replace(/\s*\(.*\)/, ''))}">🔎 Buscar informações na internet</button></div>
+      ${c.resumo ? `<div class="card resumo-planta"><div class="row"><span class="det-ico sm">${icc(c)}</span><div class="grow"><b>${h(c.nome)}</b><div class="small muted">${h(c.grupo || c.tipo || '')}${c.perene ? ' · perene' : ''}${c.veg ? ' · também por ' + h(c.veg) : ''}</div></div></div>
+        <p class="small" style="margin:10px 0 0">${h(c.resumo)}</p>${htmlCicloCultura(c)}</div>` : ''}
+      <div class="card" id="wikiBox" style="margin-top:10px"><button class="btn sm" data-act="wiki" data-termo="${h(c.nome.replace(/\s*\(.*\)/, ''))}">🔎 Buscar informações na internet</button></div>
       <a class="btn soft block" style="margin-top:10px" href="#/assistente?p=${p.id}">💬 Perguntar ao assistente sobre este plantio</a>
     </section>
 
@@ -758,6 +881,14 @@ function sheetEvento(pid, tipo) {
   });
 }
 
+function htmlCicloCultura(c) {
+  const linhas = [];
+  if (c.mDias) linhas.push(['Muda pronta', `${fmtPrazo(c.mDias)} após semear`]);
+  if (!c.soVeg || c.cSemente) linhas.push([`${(c.lbl || c.alvoLabel || 'colheita').replace(/^./, (x) => x.toUpperCase())} (direto no local)`, `${fmtPrazo(c.cSemente)} após ${c.soVeg ? 'plantar' : 'semear'}`]);
+  if (c.mDias || c.soVeg) linhas.push([`${(c.lbl || 'colheita').replace(/^./, (x) => x.toUpperCase())} (a partir de muda)`, `${fmtPrazo(c.tMuda)} após plantar a muda`]);
+  if (c.f) linhas.push(['Primeiras flores', `${fmtPrazo(c.f)} após semear`]);
+  return linhas.length ? `<div class="ciclo">${linhas.map(([a, b]) => `<div><small>${h(a)}</small><b>${h(b)}</b></div>`).join('')}</div>` : '';
+}
 /* ---- covas / pontos (roça) ---- */
 function numCovas(p) {
   const cv = Number(p.covas) || 0, sc = Number(p.sementesCova) || 0, tot = Number(p.quantidade) || (cv && sc ? Math.round(cv * sc) : 0);
@@ -1636,6 +1767,7 @@ const ACOES = {
   },
   'novo-evento': (d) => sheetEvento(d.pid, d.tipo),
   'editar-datas': (d) => sheetDatas(d.pid),
+  versoes: () => sheetVersoes(),
   'del-evento': async (d) => { const p = state.plantios.find((x) => x.id === d.pid); if (!p || !confirm('Apagar este registro?')) return; p.eventos = p.eventos.filter((e) => e.id !== d.eid); await salvar(); render(); },
   status: async (d) => { const p = state.plantios.find((x) => x.id === d.pid); p.status = d.s; await salvar(); toast('Situação atualizada'); render(); },
   'del-plantio': async (d) => { if (!confirm('Apagar este plantio e todo o diário dele? Não dá para desfazer.')) return; state.plantios = state.plantios.filter((p) => p.id !== d.pid); await salvar(); location.hash = '#/plantios'; },
@@ -1709,6 +1841,7 @@ window.addEventListener('offline', () => { atualizarRede(); toast('🟠 Sem inte
 
 (async function iniciar() {
   carregarCfg(); aplicarTema(); atualizarRede();
+  registrarVersao(); $$('[data-versao]').forEach((el) => el.textContent = 'v' + VERSAO);
   iconizar(document.querySelector('.topbar')); iconizar(document.querySelector('.tabbar'));
   await carregarEstado();
   render();

@@ -13,11 +13,12 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Minha Horta">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=1.7.0">
+  <link rel="stylesheet" href="styles.css?v=1.8.0">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#/"><span class="brand-logo" data-ic="Plantios"></span><span class="brand-name">Minha Horta</span></a>
+    <button type="button" class="versao" data-act="versoes" data-versao title="Versão do app e histórico de atualizações">v1.8.0</button>
     <nav class="topnav" aria-label="Menu">
       <a href="#/" data-tab="inicio"><span data-ic="Início"></span>Início</a>
       <a href="#/plantios" data-tab="plantios"><span data-ic="Plantios"></span>Plantios</a>
@@ -48,8 +49,8 @@
   <div id="modal" class="modal" hidden></div>
 
   <script>try{document.documentElement.dataset.tema=(JSON.parse(localStorage.getItem('horta-config')||'{}').temaBase)||'clean'}catch(e){}</script>
-  <script src="icons.js?v=1.7.0"></script>
-  <script src="catalog.js?v=1.7.0"></script>
-  <script src="app.js?v=1.7.0"></script>
+  <script src="icons.js?v=1.8.0"></script>
+  <script src="catalog.js?v=1.8.0"></script>
+  <script src="app.js?v=1.8.0"></script>
 </body>
 </html>
