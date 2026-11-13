@@ -3,7 +3,7 @@
    e podem ir para a nuvem (GitHub Gist) quando houver internet. */
 'use strict';
 
-const VERSAO = '1.6.0';
+const VERSAO = '1.7.0';
 
 /* =================== ÍCONES (exportados do Figma) =================== */
 const ic = (n, cls = '') => (window.ICONES && ICONES[n]) ? `<svg class="i ${cls}" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ICONES[n]}</svg>` : '';
@@ -412,7 +412,10 @@ function fasesPlantio(p, a = analisar(p)) {
     { e: '🍃', curto: 'Folhas', nome: 'Folhas verdadeiras', dia: G[1] + 7, dica: 'Desbaste e primeira adubação leve.' },
     { e: '🌿', curto: 'Cresce', nome: 'Crescimento forte', dia: meio(0.55), dica: 'Fase que mais pede luz e água.' }];
   if (muda) inter = inter.filter((x) => x.curto !== 'Folhas');
-  for (const x of inter) f.push({ ...x, dia: muda ? x.dia : ajusta(x.dia) });
+  for (const x of inter) {
+    const m = p.marcos?.[x.curto];
+    f.push(m ? { ...x, dia: diasDesde(p.data, new Date(m)), real: true, dica: 'Registrado ✓' } : { ...x, dia: muda ? x.dia : ajusta(x.dia) });
+  }
   const colh = ev(p, 'colheita')[0];
   const ultimo = c.alvoLabel || 'colheita';
   f.push(colh
@@ -566,12 +569,17 @@ function viewForm(id) {
       </div>
 
       <label class="field"><span>4. Onde?</span><input type="text" name="local" list="locais" value="${h(p.local)}" placeholder="Ex.: Janela da cozinha"></label>
-      <datalist id="locais">${[...new Set(['Janela da sala', 'Janela da cozinha', 'Varanda', 'Mini estufa', 'Quintal coberto', 'Bancada com luz de cultivo', ...state.plantios.map((x) => x.local).filter(Boolean)])].map((l) => `<option value="${h(l)}">`).join('')}</datalist>
+      <datalist id="locais">${[...new Set(['Janela da sala', 'Janela da cozinha', 'Varanda', 'Mini estufa', 'Quintal coberto', 'Bancada com luz de cultivo', 'Roça', 'Roça de baixo', 'Quintal', ...state.plantios.map((x) => x.local).filter(Boolean)])].map((l) => `<option value="${h(l)}">`).join('')}</datalist>
       <div class="grid2">
         <label class="field"><span>Recipiente</span>
-          <select name="recipiente">${['Vaso', 'Bandeja de mudas', 'Copinho', 'Garrafa PET', 'Jardineira', 'Canteiro', 'Hidroponia'].map((r) => `<option ${p.recipiente === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
-        <label class="field"><span>Quantidade</span><input type="number" name="quantidade" min="0" value="${h(p.quantidade)}" placeholder="sementes/mudas"></label>
+          <select name="recipiente">${['Vaso', 'Bandeja de mudas', 'Copinho', 'Garrafa PET', 'Jardineira', 'Canteiro', 'Leira', 'Covas no chão', 'Roça / campo', 'Hidroponia', ...(p.recipiente && !['Vaso', 'Bandeja de mudas', 'Copinho', 'Garrafa PET', 'Jardineira', 'Canteiro', 'Leira', 'Covas no chão', 'Roça / campo', 'Hidroponia'].includes(p.recipiente) ? [p.recipiente] : [])].map((r) => `<option ${p.recipiente === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+        <label class="field"><span>Covas / pontos plantados</span><input type="number" name="covas" min="0" inputmode="numeric" value="${h(p.covas ?? '')}" placeholder="Ex.: 120"></label>
       </div>
+      <div class="grid2">
+        <label class="field"><span>Sementes por cova</span><input type="number" name="sementesCova" min="0" step="0.5" inputmode="decimal" value="${h(p.sementesCova ?? '')}" placeholder="Ex.: 5"></label>
+        <label class="field"><span>Total de sementes / mudas</span><input type="number" name="quantidade" min="0" inputmode="numeric" value="${h(p.quantidade)}" placeholder="calculado sozinho"></label>
+      </div>
+      <p class="small muted" id="calcCovas" style="margin:6px 0 0">Na roça, conte os pontos (covas) e quantas sementes vão em cada um: o app calcula o total e depois a taxa de covas que brotaram.</p>
       <label class="field"><span>Substrato / adubo</span><input type="text" name="substrato" value="${h(p.substrato)}" placeholder="Ex.: terra vegetal + húmus 2:1"></label>
       <label class="field"><span>Observações</span><textarea name="notas" placeholder="Origem da semente, profundidade, molho prévio…">${h(p.notas)}</textarea></label>
       <label class="field"><span>Foto (opcional)</span><input type="file" name="foto" accept="image/*" capture="environment"></label>
@@ -588,6 +596,12 @@ function viewForm(id) {
         $('#dicaCult').innerHTML = c ? `<b>${c.e} ${h(c.nome)}:</b> germina em ${c.germ[0]}–${c.germ[1]} dias · ${h(c.alvoLabel)} em ~${c.alvo} dias · regar a cada ${plural(c.rega, 'dia')} · luz ${h(c.luz)}.<br>💡 ${h(c.dica || '')}` : '';
       };
       mostraDica();
+      const calc = () => {
+        const cv = Number(f.covas.value), sc = Number(f.sementesCova.value);
+        if (cv > 0 && sc > 0) { f.quantidade.placeholder = String(Math.round(cv * sc)); $('#calcCovas').innerHTML = `${cv} covas × ${String(sc).replace('.', ',')} sementes = <b>${Math.round(cv * sc)} sementes</b>${f.quantidade.value && Number(f.quantidade.value) !== Math.round(cv * sc) ? ' (você digitou outro total; vale o que digitou)' : ''}.`; }
+        else if (cv > 0 && Number(f.quantidade.value) > 0) $('#calcCovas').innerHTML = `Média de <b>${(Number(f.quantidade.value) / cv).toFixed(1).replace('.', ',')} sementes por cova</b>.`;
+      };
+      ['covas', 'sementesCova', 'quantidade'].forEach((n) => f[n].addEventListener('input', calc)); calc();
       $$('.pick', f).forEach((b) => b.onclick = () => {
         $$('.pick', f).forEach((x) => x.classList.remove('sel')); b.classList.add('sel');
         f.cultura.value = b.dataset.cult; $('#boxOutro').hidden = b.dataset.cult !== 'outro'; mostraDica();
@@ -616,7 +630,9 @@ function viewForm(id) {
         }
         const dados = {
           cultura: culturaId, nome: '', variedade: f.variedade.value.trim(), metodo: f.metodo.value, data: f.data.value,
-          local: f.local.value.trim(), recipiente: f.recipiente.value, quantidade: f.quantidade.value, substrato: f.substrato.value.trim(),
+          local: f.local.value.trim(), recipiente: f.recipiente.value, substrato: f.substrato.value.trim(),
+          covas: f.covas.value ? Number(f.covas.value) : '', sementesCova: f.sementesCova.value ? Number(f.sementesCova.value) : '',
+          quantidade: f.quantidade.value || (Number(f.covas.value) > 0 && Number(f.sementesCova.value) > 0 ? String(Math.round(f.covas.value * f.sementesCova.value)) : ''),
           notas: f.notas.value.trim(), sensorId: f.sensorId.value.trim()
         };
         if (f.foto.files[0]) dados.foto = await comprimirFoto(f.foto.files[0]);
@@ -650,7 +666,7 @@ function viewDetalhe(id) {
       ${a.ativo ? `<div style="margin-top:14px"><div class="row between small"><span>Dia <b>${a.dia}</b></span><span class="muted">${a.alvoFalta > 0 ? `faltam ~${a.alvoFalta} dias p/ ${h(c.alvoLabel)}` : h(c.alvoLabel) + ' 🎉'}</span></div><div class="progress"><i style="width:${a.progresso}%"></i></div></div>` : ''}
       ${a.acoes.length ? `<div style="margin-top:14px">${a.acoes.map(cardAcao).join('')}</div>` : ''}
     </section>
-    ${a.ativo ? `<section class="section"><h2>Linha do tempo até ${h(c.alvoLabel)}</h2><div class="card">${htmlLinhaCompleta(p, a)}</div></section>` : ''}
+    <section class="section"><div class="sec-head"><h2>Linha do tempo até ${h(c.alvoLabel)}</h2><button class="btn sm soft btn-mini" data-act="editar-datas" data-pid="${p.id}">${ic('Calendário')}Editar datas</button></div><div class="card">${htmlLinhaCompleta(p, a)}</div></section>
 
     <section class="section"><h2>Registrar agora</h2>
       <div class="events-btns">${Object.entries(window.EVENTOS).map(([k, v]) => `<button data-act="novo-evento" data-pid="${p.id}" data-tipo="${k}"><span>${v.e}</span>${v.nome.split('/')[0]}</button>`).join('')}</div>
@@ -666,7 +682,8 @@ function viewDetalhe(id) {
         <div class="fact"><small>Luz</small><b>${h(c.luz)}</b></div>
         <div class="fact"><small>Temperatura ideal</small><b>${c.temp ? `${c.temp[0]}–${c.temp[1]}°C` : '—'}</b></div>
         <div class="fact"><small>pH ideal</small><b>${c.ph ? `${c.ph[0]}–${c.ph[1]}` : '—'}</b></div>
-        <div class="fact"><small>Recipiente</small><b>${h(p.recipiente || '—')}${p.quantidade ? ' · ' + h(p.quantidade) + ' un.' : ''}</b></div>
+        <div class="fact"><small>Recipiente / área</small><b>${h(p.recipiente || '—')}</b></div>
+        ${htmlFactsCovas(p)}
       </div>
       ${c.dica ? `<p class="small" style="margin-top:10px">💡 ${h(c.dica)}</p>` : ''}
       ${p.substrato ? `<p class="small muted">Substrato: ${h(p.substrato)}</p>` : ''}
@@ -720,19 +737,101 @@ function sheetEvento(pid, tipo) {
   abrirModal(`
     <h2>${E.e} ${E.nome}</h2><p class="muted small">${h(nomePlantio(p))}</p>
     <form id="fEv">
-      <label class="field"><span>Quando</span><input type="datetime-local" name="data" value="${paraInputLocal()}" required></label>
+      <label class="field"><span>Quando aconteceu</span><input type="datetime-local" name="data" value="${paraInputLocal()}" required></label>
+      <div class="quick">${[['Agora', 0], ['Ontem', 1], ['Anteontem', 2], ['3 dias atrás', 3]].map(([l, n]) => `<button type="button" class="btn sm ${n ? '' : 'soft'}" data-volta="${n}">${l}</button>`).join('')}</div>
+      ${tipo === 'germinou' && p.covas ? `<label class="field"><span>Quantas covas/pontos brotaram? (de ${p.covas})</span><input type="number" name="covasBrot" min="0" max="${p.covas}" inputmode="numeric" value="${h(p.covasBrotaram ?? '')}"></label>` : ''}
       ${rotuloValor ? `<label class="field"><span>${rotuloValor}</span><input type="text" name="valor" inputmode="${tipo === 'adubacao' ? 'text' : 'decimal'}"></label>` : ''}
       <label class="field"><span>Anotação</span><textarea name="nota" placeholder="${tipo === 'praga' ? 'O que viu? Onde? (ex.: pulgão embaixo das folhas)' : 'Opcional'}"></textarea></label>
       <label class="field"><span>Foto</span><input type="file" name="foto" accept="image/*" capture="environment"></label>
       <div class="row" style="margin-top:16px"><button type="button" class="btn" data-act="fechar">Cancelar</button><button class="btn primary grow">Registrar</button></div>
     </form>`, (m) => {
+    $$('[data-volta]', m).forEach((b) => b.onclick = () => { const d = new Date(); const n = Number(b.dataset.volta); if (n) { d.setDate(d.getDate() - n); d.setHours(8, 0); } $('#fEv', m).data.value = paraInputLocal(d); });
     $('#fEv', m).onsubmit = async (e) => {
       e.preventDefault(); const f = e.target;
+      if (f.covasBrot && f.covasBrot.value !== '') p.covasBrotaram = Number(f.covasBrot.value);
       const evt = { id: uid(), tipo, data: f.data.value, nota: f.nota.value.trim(), valor: f.valor ? f.valor.value.trim() : '' };
       if (f.foto.files[0]) evt.foto = await comprimirFoto(f.foto.files[0]);
       p.eventos.push(evt);
       if (tipo === 'perda') p.status = 'perdido';
       await salvar(); fecharModal(); toast(`${E.e} ${E.nome} ✓`); render();
+    };
+  });
+}
+
+/* ---- covas / pontos (roça) ---- */
+function numCovas(p) {
+  const cv = Number(p.covas) || 0, sc = Number(p.sementesCova) || 0, tot = Number(p.quantidade) || (cv && sc ? Math.round(cv * sc) : 0);
+  const brot = p.covasBrotaram !== '' && p.covasBrotaram != null ? Number(p.covasBrotaram) : null;
+  return { cv, sc: sc || (cv && tot ? tot / cv : 0), tot, brot, pega: cv && brot != null ? Math.round((brot / cv) * 100) : null };
+}
+const fmtNum = (n, d = 1) => Number.isInteger(n) ? n.toLocaleString('pt-BR') : n.toFixed(d).replace('.', ',');
+function htmlFactsCovas(p) {
+  const n = numCovas(p); const out = [];
+  if (n.cv) out.push(`<div class="fact"><small>Covas / pontos</small><b>${fmtNum(n.cv)}</b></div>`);
+  if (n.tot) out.push(`<div class="fact"><small>${p.metodo === 'muda' ? 'Mudas' : 'Sementes'} no total</small><b>${fmtNum(n.tot)}</b></div>`);
+  if (n.cv && n.sc) out.push(`<div class="fact"><small>Média por cova</small><b>${fmtNum(n.sc)} ${p.metodo === 'muda' ? 'mudas' : 'sementes'}</b></div>`);
+  if (n.pega != null) out.push(`<div class="fact"><small>Covas que brotaram</small><b>${fmtNum(n.brot)} de ${fmtNum(n.cv)} · ${n.pega}%</b></div>`);
+  if (n.pega != null && n.cv - n.brot > 0) out.push(`<div class="fact"><small>Para replantar</small><b>${plural(n.cv - n.brot, 'cova')}</b></div>`);
+  if (!out.length && p.quantidade) out.push(`<div class="fact"><small>Quantidade</small><b>${h(p.quantidade)} un.</b></div>`);
+  return out.join('');
+}
+
+/* ---- janela "Editar datas": corrige quando cada coisa aconteceu ---- */
+const soData = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+function comHora(dataStr, isoAntigo) {   // mantém o horário que já existia (ou 8h)
+  const v = isoAntigo ? new Date(isoAntigo) : null;
+  return `${dataStr}T${v && !isNaN(v) ? pad(v.getHours()) + ':' + pad(v.getMinutes()) : '08:00'}`;
+}
+function sheetDatas(pid) {
+  const p = state.plantios.find((x) => x.id === pid); if (!p) return;
+  const a = analisar(p), fases = fasesPlantio(p, a);
+  const germ = ev(p, 'germinou')[0], colh = ev(p, 'colheita')[0];
+  const linha = (rot, nome, val, prev, extra = '') => `<div class="ed-linha"><div class="ed-txt"><b>${rot}</b>${prev ? `<small>${prev}</small>` : ''}</div>
+    <div class="ed-campo"><input type="date" name="${nome}" value="${h(val)}" max="${soData(new Date().toISOString())}">${val && nome !== 'plantio' ? `<button type="button" class="ed-limpa" data-limpa="${nome}" title="Ainda não aconteceu" aria-label="Limpar">✕</button>` : ''}</div>${extra}</div>`;
+  const prevTxt = (x) => x && !x.real ? `previsto ~${fmtData(x.data.toISOString(), false)}` : x?.real ? 'registrado' : '';
+  const fGerm = fases.find((x) => x.curto === 'Germina' || x.curto === 'Raiz');
+  const inter = fases.filter((x) => x.dia > 0 && !['Germina', 'Raiz', 'Colheita', 'Pronta', 'Plantio'].includes(x.curto));
+  const fFim = fases[fases.length - 1];
+  const outros = [...(p.eventos || [])].filter((e) => e !== germ && e !== colh).sort((x, y) => new Date(x.data) - new Date(y.data));
+  abrirModal(`
+    <div class="row between"><h2>Editar datas</h2><button class="icon-btn" data-act="fechar" aria-label="Fechar">✕</button></div>
+    <p class="muted small" style="margin:2px 0 12px">${h(nomePlantio(p))} · escolha a data real de cada etapa. Deixe em branco o que ainda não aconteceu.</p>
+    <form id="fDatas">
+      <div class="ed-grupo">
+        ${linha(p.metodo === 'muda' ? 'Plantio da muda' : 'Semeadura / plantio', 'plantio', soData(p.data), 'dia 0')}
+        ${a.precisaGerm ? linha(p.metodo === 'estaca' ? 'Enraizou' : 'Germinou / brotou', 'germ', soData(germ?.data), prevTxt(fGerm),
+          p.covas ? `<label class="ed-sub">Covas que brotaram <input type="number" name="covasBrot" min="0" max="${p.covas}" inputmode="numeric" value="${h(p.covasBrotaram ?? '')}" placeholder="de ${p.covas}"></label>` : '') : ''}
+        ${inter.map((x) => linha(h(x.nome), 'm_' + x.curto, soData(p.marcos?.[x.curto]), prevTxt(x))).join('')}
+        ${linha(h(fFim.nome), 'colh', soData(colh?.data), prevTxt(fFim))}
+      </div>
+      ${outros.length ? `<h3 style="margin:18px 0 8px">Registros do diário</h3><div class="ed-grupo">${outros.map((e) => `<div class="ed-linha"><div class="ed-txt"><b>${window.EVENTOS[e.tipo]?.e || '•'} ${h(window.EVENTOS[e.tipo]?.nome || e.tipo)}</b>${e.valor || e.nota ? `<small>${h([e.valor, e.nota].filter(Boolean).join(' · ')).slice(0, 60)}</small>` : ''}</div>
+        <div class="ed-campo"><input type="datetime-local" name="ev_${e.id}" value="${h(paraInputLocal(new Date(e.data)))}" required></div></div>`).join('')}</div>` : ''}
+      <div class="row" style="margin-top:18px"><button type="button" class="btn" data-act="fechar">Cancelar</button><button class="btn primary grow">Salvar datas</button></div>
+    </form>`, (m) => {
+    const f = $('#fDatas', m);
+    $$('[data-limpa]', m).forEach((b) => b.onclick = () => { f[b.dataset.limpa].value = ''; b.remove(); });
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!f.plantio.value) { toast('A data do plantio não pode ficar vazia.'); return; }
+      const novoPlantio = comHora(f.plantio.value, p.data);
+      const dataEv = (nome) => f[nome] && f[nome].value;
+      for (const n of ['germ', 'colh', ...inter.map((x) => 'm_' + x.curto)]) {
+        const v = dataEv(n); if (v && v < f.plantio.value) { toast('Nenhuma etapa pode ser antes do plantio.'); return; }
+      }
+      const agora = Date.now();
+      p.data = novoPlantio;
+      const ajustaEv = (tipo, atual, v) => {
+        if (v) { if (atual) { atual.data = comHora(v, atual.data); atual.mod = agora; } else p.eventos.push({ id: uid(), tipo, data: comHora(v), nota: '', valor: '', mod: agora }); }
+        else if (atual) { p.eventos = p.eventos.filter((x) => x !== atual); state.apagados ||= {}; state.apagados['e:' + atual.id] = agora; }
+      };
+      if (a.precisaGerm) ajustaEv('germinou', germ, dataEv('germ'));
+      ajustaEv('colheita', colh, dataEv('colh'));
+      if (f.covasBrot) p.covasBrotaram = f.covasBrot.value === '' ? '' : Number(f.covasBrot.value);
+      const marcos = {};
+      for (const x of inter) { const v = dataEv('m_' + x.curto); if (v) marcos[x.curto] = comHora(v, p.marcos?.[x.curto]); }
+      if (Object.keys(marcos).length) p.marcos = marcos; else delete p.marcos;
+      for (const ev0 of outros) { const v = f['ev_' + ev0.id]?.value; if (v && v !== paraInputLocal(new Date(ev0.data))) { ev0.data = v; ev0.mod = agora; } }
+      await salvar(); fecharModal(); toast('Datas atualizadas ✓'); render();
     };
   });
 }
@@ -818,6 +917,16 @@ function svgLinhas(leits, campos) {
   </svg><div class="legend">${campos.map(([, n, cor]) => `<span><i style="background:${cor}"></i>${n}</span>`).join('')}</div></div>`;
 }
 
+function htmlResumoCovas() {
+  const ps = state.plantios.filter((p) => Number(p.covas) > 0); if (!ps.length) return '';
+  const ns = ps.map((p) => ({ p, ...numCovas(p) }));
+  const cv = ns.reduce((s, n) => s + n.cv, 0), tot = ns.reduce((s, n) => s + n.tot, 0);
+  const comB = ns.filter((n) => n.brot != null), cvB = comB.reduce((s, n) => s + n.cv, 0), brot = comB.reduce((s, n) => s + n.brot, 0);
+  return `<section class="section"><h2>Covas e sementes</h2>
+    <div class="tiles"><div class="tile"><b>${cv}</b><span>covas plantadas</span></div><div class="tile"><b>${tot || '—'}</b><span>sementes/mudas</span></div>
+    <div class="tile"><b>${tot && cv ? fmtNum(tot / cv) : '—'}</b><span>média por cova</span></div><div class="tile"><b>${cvB ? Math.round(brot / cvB * 100) + '%' : '—'}</b><span>covas que brotaram</span></div></div>
+    <div class="card" style="margin-top:10px">${ns.map((n) => `<div class="summary-line"><b>${icc(cultura(n.p))} ${h(nomePlantio(n.p))}</b> <span class="muted small">· ${h(n.p.local || 'sem local')}</span><br><span class="small">${n.cv} covas${n.sc ? ` × ${fmtNum(n.sc)} = ${fmtNum(n.tot)} sementes` : ''}${n.pega != null ? ` · brotaram ${n.brot} (${n.pega}%)${n.cv - n.brot > 0 ? ` · replantar ${n.cv - n.brot}` : ''}` : ' · falta contar as covas que brotaram'}</span></div>`).join('')}</div></section>`;
+}
 function viewDados() {
   const grupos = estatisticas();
   const total = state.plantios.length;
@@ -839,6 +948,7 @@ function viewDados() {
     return `<h1>Dados</h1>${seg}
       <section class="tiles"><div class="tile"><b>${total}</b><span>plantios</span></div><div class="tile"><b>${ativos}</b><span>ativos</span></div>
       <div class="tile"><b>${comGerm.length ? Math.round((germOk / comGerm.length) * 100) + '%' : '—'}</b><span>germinaram</span></div><div class="tile"><b>${colheitas}</b><span>colheitas</span></div></section>
+      ${htmlResumoCovas()}
       ${destaques.length ? `<section class="section"><h2>Em resumo</h2><div class="card">${destaques.map((d) => `<div class="summary-line">${d}</div>`).join('')}</div></section>` : ''}
       <section class="section"><h2>Por cultura</h2><div class="card">${grupos.map((g) => `<div class="summary-line"><b>${icc(g.c)} ${h(g.c.nome)}</b> <span class="muted small">· ${plural(g.n, 'plantio')}</span><br><span class="small">${frasesCultura(g).map((f) => f.charAt(0).toUpperCase() + f.slice(1)).join('. ')}.</span></div>`).join('')}</div></section>
       <a class="btn soft block" style="margin-top:14px" href="#/assistente?q=analise">🤖 Pedir uma análise completa ao assistente</a>`;
@@ -921,7 +1031,7 @@ function contextoHorta(pidFoco) {
   for (const p of lista.slice(-40)) {
     const a = analisar(p);
     const evs = [...(p.eventos || [])].sort((x, y) => new Date(x.data) - new Date(y.data)).slice(-8).map((e) => `${fmtData(e.data, false)} ${window.EVENTOS[e.tipo]?.nome}${e.valor ? ' ' + e.valor : ''}${e.nota ? ' (' + e.nota + ')' : ''}`).join('; ');
-    linhas.push(`- ${nomePlantio(p)} | ${p.metodo} | plantado ${fmtData(p.data)} | dia ${a.dia} | fase: ${a.fase} | germinou: ${a.germDia != null ? 'dia ' + a.germDia : a.precisaGerm ? 'não' : 'muda'} | local: ${p.local || '-'} | ${p.recipiente || ''} | substrato: ${p.substrato || '-'} | ref: germ ${a.c.germ.join('-')}d, meta ${a.c.alvo}d, rega a cada ${a.c.rega}d${p.notas ? ' | notas: ' + p.notas : ''}${evs ? ' | eventos: ' + evs : ''}`);
+    linhas.push(`- ${nomePlantio(p)} | ${p.metodo} | plantado ${fmtData(p.data)} | dia ${a.dia} | fase: ${a.fase} | germinou: ${a.germDia != null ? 'dia ' + a.germDia : a.precisaGerm ? 'não' : 'muda'} | local: ${p.local || '-'} | ${p.recipiente || ''} |${p.covas ? ` covas: ${p.covas}${p.sementesCova ? ' × ' + p.sementesCova + ' sementes' : ''}${p.covasBrotaram !== '' && p.covasBrotaram != null ? ', brotaram ' + p.covasBrotaram : ''} |` : ''} substrato: ${p.substrato || '-'} | ref: germ ${a.c.germ.join('-')}d, meta ${a.c.alvo}d, rega a cada ${a.c.rega}d${p.notas ? ' | notas: ' + p.notas : ''}${evs ? ' | eventos: ' + evs : ''}`);
   }
   const leits = [...state.leituras].sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 10);
   if (leits.length) linhas.push('ÚLTIMAS LEITURAS DE SENSOR: ' + leits.map((l) => `${fmtData(l.data)} ${l.plantioId ? '[' + nomePlantio(state.plantios.find((p) => p.id === l.plantioId) || {}) + ']' : ''} solo ${l.umidadeSolo ?? '-'}% pH ${l.ph ?? '-'} ${l.temp ?? '-'}°C ar ${l.umidadeAr ?? '-'}% luz ${l.luz ?? '-'}`).join(' / '));
@@ -1520,10 +1630,12 @@ const ACOES = {
   'modo-dados': (d) => { modoDados = d.m; render(); },
   'evento-rapido': async (d) => {
     const p = state.plantios.find((x) => x.id === d.pid); if (!p) return;
+    if (d.tipo !== 'rega') return sheetEvento(d.pid, d.tipo);
     p.eventos.push({ id: uid(), tipo: d.tipo, data: paraInputLocal(), nota: '', valor: '' });
     await salvar(); toast(`${window.EVENTOS[d.tipo].e} ${window.EVENTOS[d.tipo].nome} ✓ — ${nomePlantio(p)}`); render();
   },
   'novo-evento': (d) => sheetEvento(d.pid, d.tipo),
+  'editar-datas': (d) => sheetDatas(d.pid),
   'del-evento': async (d) => { const p = state.plantios.find((x) => x.id === d.pid); if (!p || !confirm('Apagar este registro?')) return; p.eventos = p.eventos.filter((e) => e.id !== d.eid); await salvar(); render(); },
   status: async (d) => { const p = state.plantios.find((x) => x.id === d.pid); p.status = d.s; await salvar(); toast('Situação atualizada'); render(); },
   'del-plantio': async (d) => { if (!confirm('Apagar este plantio e todo o diário dele? Não dá para desfazer.')) return; state.plantios = state.plantios.filter((p) => p.id !== d.pid); await salvar(); location.hash = '#/plantios'; },
@@ -1533,8 +1645,8 @@ const ACOES = {
   'clima-atualizar': async () => { try { await atualizarClima(true); toast('Clima atualizado'); } catch { toast('⚠ Sem conexão com o serviço de clima'); } render(); },
   sugestao: (d) => enviarChat(d.t),
   'limpar-chat': async () => { state.chat = []; await salvar(); render(); },
-  'csv-plantios': () => baixar('plantios.csv', csv([['id', 'planta', 'variedade', 'metodo', 'data_plantio', 'periodo', 'local', 'recipiente', 'quantidade', 'substrato', 'dias', 'germinou_dia', 'ref_germ_min', 'ref_germ_max', 'regas', 'colheitas', 'gramas', 'situacao', 'notas'],
-    ...state.plantios.map((p) => { const a = analisar(p); const col = ev(p, 'colheita'); return [p.id, a.c.nome, p.variedade, p.metodo, p.data, periodo(p.data), p.local, p.recipiente, p.quantidade, p.substrato, a.dia, a.germDia ?? '', a.c.germ[0], a.c.germ[1], ev(p, 'rega').length, col.length, col.reduce((s, x) => s + (Number(x.valor) || 0), 0), a.fase, p.notas]; })]), 'text/csv'),
+  'csv-plantios': () => baixar('plantios.csv', csv([['id', 'planta', 'variedade', 'metodo', 'data_plantio', 'periodo', 'local', 'recipiente', 'quantidade', 'covas', 'sementes_por_cova', 'covas_brotaram', 'substrato', 'dias', 'germinou_dia', 'ref_germ_min', 'ref_germ_max', 'regas', 'colheitas', 'gramas', 'situacao', 'notas'],
+    ...state.plantios.map((p) => { const a = analisar(p); const col = ev(p, 'colheita'); return [p.id, a.c.nome, p.variedade, p.metodo, p.data, periodo(p.data), p.local, p.recipiente, p.quantidade, p.covas ?? '', p.sementesCova ?? '', p.covasBrotaram ?? '', p.substrato, a.dia, a.germDia ?? '', a.c.germ[0], a.c.germ[1], ev(p, 'rega').length, col.length, col.reduce((s, x) => s + (Number(x.valor) || 0), 0), a.fase, p.notas]; })]), 'text/csv'),
   'csv-eventos': () => baixar('diario.csv', csv([['plantio', 'tipo', 'data', 'dia_do_plantio', 'valor', 'nota'], ...state.plantios.flatMap((p) => (p.eventos || []).map((e) => [nomePlantio(p), window.EVENTOS[e.tipo]?.nome, e.data, diasDesde(p.data, new Date(e.data)), e.valor, e.nota]))]), 'text/csv'),
   'csv-leituras': () => baixar('leituras.csv', csv([['data', 'plantio', 'umidade_solo', 'ph', 'temperatura', 'umidade_ar', 'luz', 'origem'], ...state.leituras.map((l) => [l.data, l.plantioId ? nomePlantio(state.plantios.find((p) => p.id === l.plantioId) || {}) : 'ambiente', l.umidadeSolo, l.ph, l.temp, l.umidadeAr, l.luz, l.origem])]), 'text/csv'),
   'export-json': () => baixar(`minha-horta-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(exportarDados(), null, 1)),

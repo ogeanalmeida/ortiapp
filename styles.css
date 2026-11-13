@@ -448,3 +448,25 @@ a.card.plant:active, .menu a:active { transform: scale(.985); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
 }
+
+/* atalho para a página de sensores */
+.icon-btn.top-sens.ativo { background: var(--primary-soft); color: var(--primary-strong); }
+@media (min-width: 900px) { .icon-btn.top-sens { display: none; } }
+
+/* título de seção com botão pequeno ao lado */
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.sec-head h2 { margin: 0; }
+.btn.btn-mini { padding: 5px 10px; font-size: .78rem; border-radius: 9px; gap: 5px; flex: none; }
+.btn.btn-mini .i { width: 14px; height: 14px; }
+/* janela de editar datas */
+.ed-grupo { border: 1px solid var(--line-soft); border-radius: 14px; overflow: hidden; }
+.ed-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; }
+.ed-linha + .ed-linha { border-top: 1px solid var(--line-soft); }
+.ed-txt { flex: 1 1 150px; min-width: 0; }
+.ed-txt b { display: block; font-weight: 500; font-size: .92rem; }
+.ed-txt small { color: var(--muted); font-size: .75rem; }
+.ed-campo { display: flex; align-items: center; gap: 6px; flex: 0 1 220px; }
+.ed-campo input { padding: 8px 10px; min-width: 0; }
+.ed-limpa { border: 0; background: var(--neutral); color: var(--muted); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; flex: none; }
+.ed-sub { flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .82rem; color: var(--muted); }
+.ed-sub input { width: 110px; padding: 6px 10px; }

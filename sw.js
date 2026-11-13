@@ -1,6 +1,6 @@
 /* Service worker: guarda o app no aparelho para abrir sem internet.
    Ao publicar uma versão nova, aumente o número em CACHE. */
-const CACHE = 'minha-horta-v7';
+const CACHE = 'minha-horta-v10';
 const ARQUIVOS = ['./', './index.html', './styles.css', './app.js', './catalog.js', './icons.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -14,7 +14,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // APIs externas (clima, IA, GitHub) vão direto
   // Rede primeiro (pega atualizações), cai para o cache quando offline
   e.respondWith(
-    fetch(e.request).then((r) => {
+    fetch(e.request, { cache: 'no-cache' }).then((r) => {
       const copia = r.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copia));
       return r;
